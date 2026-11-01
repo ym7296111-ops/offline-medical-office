@@ -1,6 +1,6 @@
 # البنية التقنية — Technical Architecture
 
-> **الحالة:** قيد الإكمال (الدفعة 1 من 3 — البنية والطبقات والأمان).
+> **الحالة:** مكتمل.
 
 > **اللغة:** TypeScript (إلزامي).
 
@@ -279,16 +279,6 @@ offline-medical-office/
 
 - ملفات WAL (-wal, -shm) تُدار تلقائيًا من SQLite، ولا تُنقل يدويًا.
 
-## 8. ما لم يُحدَّد بعد (الدفعات 2 و3)
-
-- نظام Migrations (منفّذ، رقم الإصدار، rollback).
-
-- استراتيجية معالجة الأخطاء (error codes, user messages).
-
-- استراتيجية السجلات (log levels, rotation, retention).
-
-- استراتيجية الاختبارات (unit/integration coverage targets).
-
 ## 9. عقد IPC
 
 ### 9.1 قواعد التسمية
@@ -432,3 +422,146 @@ export async function createPatient(input: CreatePatientInput) {
 - كل `catch` يستدعي `toIpcError(err)`.
 - `toIpcError` يعرف: `ZodError` → `VALIDATION_ERROR`، `SqliteError` (FK) → `FOREIGN_KEY_ERROR`، `UNIQUE` → `CONFLICT`، إلخ.
 - `INTERNAL_ERROR` يُسجَّل كاملًا في `electron-log`، ويُعاد للواجهة برسالة عامة فقط بلا stack trace.
+
+## 10. نظام Migrations
+
+### 10.1 القواعد
+
+- كل تغيير على بنية القاعدة يمر عبر migration جديد.
+- لا يُعدَّل migration معتمد بعد تطبيقه.
+- كل migration ملف SQL واحد في `src/main/db/migrations/NNN_description.sql`، حيث NNN رقم تسلسلي (001, 002, ...).
+- حالة التطبيق تُتابع في جدول `_migrations` (id, name, applied_at).
+
+### 10.2 Runner
+
+~~~ts
+// src/main/db/migrations/runner.ts
+function runMigrations(db: Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  const applied = new Set(
+    db.prepare('SELECT name FROM _migrations').all().map((r: any) => r.name)
+  );
+
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort();
+
+  for (const file of files) {
+    if (applied.has(file)) continue;
+    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+    const tx = db.transaction(() => {
+      db.exec(sql);
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)')
+        .run(file, new Date().toISOString());
+    });
+    tx();
+  }
+}
+~~~
+
+- كل migration يُطبَّق داخل transaction. فشل أي statement يتراجع عن الملف بالكامل.
+- الترتيب أبجدي (001, 002, ...).
+
+### 10.3 القواعد الإلزامية
+
+- `PRAGMA foreign_keys` يجب أن يظل مفعّلًا. لا `DROP TABLE` بدون نقل البيانات أولًا.
+- إضافة عمود جديد: `ALTER TABLE ... ADD COLUMN ... NULL` أو DEFAULT.
+- تغيير نوع عمود: SQLite لا يدعم ALTER TYPE. الحل: إنشاء جدول جديد، نسخ البيانات، حذف القديم، إعادة التسمية — داخل transaction واحد.
+- حذف عمود: SQLite 3.35+ يدعم `ALTER TABLE ... DROP COLUMN`. يُستخدم فقط بعد التأكد أنه غير مستخدم في الكود.
+
+### 10.4 Rollback
+
+- النظام لا يدعم rollback تلقائي. التصحيح عبر migration جديد يعكس التغيير.
+- هذا قرار صريح: التطبيق الطبي يفضل التقدم على التراجع.
+
+## 11. استراتيجية معالجة الأخطاء
+
+### 11.1 الطبقات
+
+| الطبقة | المسؤولية |
+|---|---|
+| Repository | لا يعالج الأخطاء. يرمي `SqliteError` كما هو. |
+| Service | يرمي أخطاء مجال مخصصة (`AppError` subclasses): `ValidationError`, `NotFoundError`, `ConflictError`, `BusinessRuleError`. |
+| IPC Handler | يستدعي `toIpcError(err)` ويُعيد `IpcResponse` |
+| Renderer | يعرض `error.message` للمستخدم، ويسجّل `error.code` |
+
+### 11.2 تحويل الأخطاء
+
+~~~ts
+function toIpcError(err: unknown): IpcError {
+  if (err instanceof ZodError) {
+    return { code: 'VALIDATION_ERROR', message: 'بيانات غير صحيحة', details: err.issues };
+  }
+  if (err instanceof AppError) {
+    return { code: err.code, message: err.message, details: err.details };
+  }
+  if (err instanceof SqliteError) {
+    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') return { code: 'CONFLICT', message: 'قيمة مكررة' };
+    if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') return { code: 'FOREIGN_KEY_ERROR', message: 'مرتبط بسجلات أخرى' };
+  }
+  logger.error('Unhandled error', err);
+  return { code: 'INTERNAL_ERROR', message: 'حدث خطأ غير متوقع' };
+}
+~~~
+
+### 11.3 قواعد صارمة
+
+- لا stack trace يصل إلى Renderer.
+- كل `INTERNAL_ERROR` يُسجَّل كاملًا في `electron-log` مع السياق (channel, payload).
+- رسائل المستخدم عربية واضحة، لا رموز تقنية.
+
+## 12. السجلات (Logging)
+
+### 12.1 الأداة
+
+- `electron-log` مع ملفات دورية.
+- المسار: `app.getPath('logs')/main.log`.
+
+### 12.2 المستويات
+
+| Level | Usage |
+|---|---|
+| error | أخطاء غير متوقعة، فشل عمليات حرجة |
+| warn | مواقف غير معتادة لكن النظام استمر |
+| info | أحداث مهمة: بدء التطبيق، إنشاء إقامة، خروج، نسخ احتياطي |
+| debug | تفاصيل تطوير فقط |
+
+### 12.3 القواعد
+
+- لا تُسجَّل بيانات مرضى حساسة (أسماء، أرقام هواتف) في `info` أو أعلى. تُستخدم `debug` فقط عند الحاجة.
+- كلمة `payload` في السجل = البيانات الخام. لا تُسجَّل في `info`.
+- rotation: حد أقصى 10MB لكل ملف، 5 ملفات تاريخية.
+
+## 13. استراتيجية الاختبارات
+
+### 13.1 الأدوات
+
+- `vitest` للاختبارات.
+- `:memory:` database للاختبارات (نفس migrations، نفس القيود).
+
+### 13.2 الأنواع
+
+| النوع | التغطية | مثال |
+|---|---|---|
+| Unit (Repositories) | 90% | اختبار كل method على `:memory:` |
+| Unit (Services) | 80% | منطق الأعمال، transactions، حسابات |
+| Integration (IPC) | المسارات الحرجة | استدعاء handler مع payload صحيح وخاطئ |
+| E2E | مسارات المستخدم | غير مطلوب في المرحلة الأولى |
+
+### 13.3 قواعد صارمة
+
+- كل migration يُختبر على قاعدة فارغة وعلى قاعدة بها بيانات seed.
+- كل قاعدة عمل في `05-workflows.md` لها اختبار واحد على الأقل.
+- الحسابات المالية (الإجماليات، الحصص) تُختبر بحالات حدّية: صفر بنود، بند واحد، بنود متعددة، تعديل بعد الحساب.
+- لا merge لـ PR بدون اختبارات تمر.
+- أهداف التغطية ليست أرقامًا sacred، بل مؤشرات. المسارات الحرجة (الخروج، التصحيح، backup) يجب أن تكون 100%.
+
+### 13.4 ما لا يُختبر
+
+- كود electron-vite scaffolding (يُعتبر framework).
+- واجهة المستخدم النهائية (تفاصيل عرض). يُختبر المنطق خلفها.
