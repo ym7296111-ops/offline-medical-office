@@ -281,8 +281,6 @@ offline-medical-office/
 
 ## 8. ما لم يُحدَّد بعد (الدفعات 2 و3)
 
-- عقد IPC التفصيلي (قنوات، أنواع الطلب/الرد).
-
 - نظام Migrations (منفّذ، رقم الإصدار، rollback).
 
 - استراتيجية معالجة الأخطاء (error codes, user messages).
@@ -290,3 +288,147 @@ offline-medical-office/
 - استراتيجية السجلات (log levels, rotation, retention).
 
 - استراتيجية الاختبارات (unit/integration coverage targets).
+
+## 9. عقد IPC
+
+### 9.1 قواعد التسمية
+
+- Channel names: `{domain}:{action}`.
+- Actions: `create`, `get`, `list`, `update`, `delete`, `toggle`, `search`, `listByVisit`, `addItem`, `updateItem`, `deleteItem`, `discharge`, `correct`, `trigger`, `getStatus`, `set`.
+- All channels use `ipcRenderer.invoke` / `ipcMain.handle` (request/response). No fire-and-forget except log streaming.
+
+### 9.2 غلاف الطلب والرد
+
+~~~ts
+interface IpcRequest<T> {
+  payload: T;
+}
+
+type IpcResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: IpcError };
+
+interface IpcError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+~~~
+
+- الواجهة لا تستقبل استثناءات خام. كل خطأ يُحوَّل إلى `IpcError` في Main قبل عبور IPC.
+- `message` نص عربي موجّه للمستخدم. `details` اختيارية (مثل `zod` issues).
+
+### 9.3 رموز الأخطاء
+
+| Code | Meaning |
+|---|---|
+| VALIDATION_ERROR | مدخلات لا تطابق zod schema |
+| NOT_FOUND | الكيان غير موجود |
+| CONFLICT | قيد فريد أو حالة متعارضة (مثل إقامة مغلقة) |
+| FOREIGN_KEY_ERROR | منع الحذف بسبب FK RESTRICT |
+| LICENSING_ERROR | ترخيص غير صالح أو منتهٍ |
+| BACKUP_ERROR | فشل النسخ الاحتياطي |
+| INTERNAL_ERROR | خطأ غير متوقع (يُسجَّل كاملًا) |
+
+### 9.4 سطح الـ Preload
+
+~~~ts
+window.api = {
+  patients: { create, get, search, update },
+  visits: { create, get, listActive, discharge, correct },
+  visitProcedures: { add, update, delete, listByVisit },
+  prescriptions: { create, addItem, updateItem, deleteItem, listByVisit },
+  drugs: { create, update, toggle, list },
+  procedures: { create, update, toggle, list },
+  insuranceCompanies: { create, update, toggle, list },
+  medicalEntities: { create, update, toggle, list },
+  auditLog: { listByVisit },
+  settings: { get, set },
+  backup: { trigger, list, setDestination, getStatus },
+  licensing: { status, activate },
+};
+~~~
+
+- كل method تُعيد `Promise<IpcResponse<T>>`.
+
+### 9.5 قائمة القنوات
+
+| Domain | Channels |
+|---|---|
+| patients | patients:create, patients:get, patients:search, patients:update |
+| visits | visits:create, visits:get, visits:listActive, visits:discharge, visits:correct |
+| visit_procedures | visit_procedures:add, visit_procedures:update, visit_procedures:delete, visit_procedures:listByVisit |
+| prescriptions | prescriptions:create, prescriptions:addItem, prescriptions:updateItem, prescriptions:deleteItem, prescriptions:listByVisit |
+| drugs | drugs:create, drugs:update, drugs:toggle, drugs:list |
+| procedures | procedures:create, procedures:update, procedures:toggle, procedures:list |
+| insurance_companies | insurance_companies:create, insurance_companies:update, insurance_companies:toggle, insurance_companies:list |
+| medical_entities | medical_entities:create, medical_entities:update, medical_entities:toggle, medical_entities:list |
+| audit_log | audit_log:listByVisit |
+| settings | settings:get, settings:set |
+| backup | backup:trigger, backup:list, backup:setDestination, backup:getStatus |
+| licensing | licensing:status, licensing:activate |
+
+### 9.6 مثال كامل: إنشاء مريض
+
+Zod schema في `src/shared/schemas/patient.ts`:
+
+~~~ts
+import { z } from 'zod';
+
+export const CreatePatientInput = z.object({
+  file_number: z.string().min(1).max(50),
+  full_name: z.string().min(1).max(200),
+  emergency_contact_phone: z.string().max(50).nullable(),
+  companion_name: z.string().max(200).nullable(),
+  relationship: z.string().max(100).nullable(),
+});
+export type CreatePatientInput = z.infer<typeof CreatePatientInput>;
+~~~
+
+Handler في `src/main/ipc/handlers/patients.ts`:
+
+~~~ts
+ipcMain.handle('patients:create', async (_event, raw) => {
+  try {
+    const input = CreatePatientInput.parse(raw);
+    const patient = patientsService.create(input);
+    return { success: true, data: patient };
+  } catch (err) {
+    return { success: false, error: toIpcError(err) };
+  }
+});
+~~~
+
+Preload في `src/preload/index.ts`:
+
+~~~ts
+contextBridge.exposeInMainWorld('api', {
+  patients: {
+    create: (input: CreatePatientInput) =>
+      ipcRenderer.invoke('patients:create', input),
+  },
+});
+~~~
+
+Renderer wrapper في `src/renderer/ipc-client.ts`:
+
+~~~ts
+export async function createPatient(input: CreatePatientInput) {
+  const response = await window.api.patients.create(input);
+  if (!response.success) throw new IpcClientError(response.error);
+  return response.data;
+}
+~~~
+
+### 9.7 قواعد التحقق
+
+- كل handler يتحقق من المدخلات عبر zod schema من `src/shared/schemas/`.
+- Zod errors تُحوَّل إلى `IpcError` برمز `VALIDATION_ERROR`، وتفاصيل `error.issues`.
+- لا يُقبل أي مدخل غير متحقق منه.
+
+### 9.8 قواعد الاستثناءات
+
+- لا يُسمح لاستثناء بالخروج من `ipcMain.handle` بدون تحويل.
+- كل `catch` يستدعي `toIpcError(err)`.
+- `toIpcError` يعرف: `ZodError` → `VALIDATION_ERROR`، `SqliteError` (FK) → `FOREIGN_KEY_ERROR`، `UNIQUE` → `CONFLICT`، إلخ.
+- `INTERNAL_ERROR` يُسجَّل كاملًا في `electron-log`، ويُعاد للواجهة برسالة عامة فقط بلا stack trace.
