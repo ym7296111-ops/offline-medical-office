@@ -164,25 +164,38 @@
 
 - **الغرض:** بند العلاج داخل الإقامة، يحتوي روشتة بداخله (D-005).
 
-- **المفتاح الأساسي:** id
+- **الحذف:** لا حذف تاريخي. التصحيح عبر audit_log (D-006).
 
-- **المفتاح الأجنبي:** visit_id → visits.id (RESTRICT)
-
-- **العلاقة:** One-to-Many مع prescription_items
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| visit_id | INTEGER | NOT NULL, FK → visits.id (RESTRICT) | |
+| prescription_date | TEXT | NOT NULL | ISO 8601، مستقل عن admission_date |
+| total_amount | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت، مجموع row_total للبنود |
+| notes | TEXT | NULL | تعليمات عامة للمريض |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 9. prescription_items
 
 - **الغرض:** الأدوية داخل الروشتة.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** لا حذف تاريخي. التصحيح عبر audit_log (D-006).
 
-- **المفاتيح الأجنبية:**
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| prescription_id | INTEGER | NOT NULL, FK → prescriptions.id (RESTRICT) | |
+| drug_id | INTEGER | NOT NULL, FK → drugs.id (RESTRICT) | |
+| drug_name_snapshot | TEXT | NOT NULL | لقطة اسم الدواء |
+| unit_price_snapshot | INTEGER | NOT NULL | بالقرش/السنت، لقطة السعر |
+| quantity | INTEGER | NOT NULL, DEFAULT 1, CHECK > 0 | |
+| row_total | INTEGER | NOT NULL | unit_price_snapshot × quantity |
+| notes | TEXT | NULL | جرعة/تعليمات الدواء |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
-  - prescription_id → prescriptions.id (RESTRICT)
-
-  - drug_id → drugs.id (RESTRICT)
-
-- **خصائص:** اسم الدواء وسعره محفوظان كلقطة.
+- **لا قيد فريد** على (prescription_id, drug_id): قد يُوصف نفس الدواء بجرعتين مختلفتين.
 
 ### الطبقة 3 — النظام
 
@@ -190,19 +203,34 @@
 
 - **الغرض:** تسجيل التصحيحات الإدارية بعد الخروج (D-006).
 
-- **المفتاح الأساسي:** id
+- **الحذف:** لا حذف. السجل تراكمي دائم.
 
-- **المفتاح الأجنبي:** visit_id → visits.id (RESTRICT، nullable)
-
-- **محتويات إلزامية:** من، متى، ماذا، لماذا.
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| visit_id | INTEGER | NOT NULL, FK → visits.id (RESTRICT) | |
+| entity_type | TEXT | NOT NULL, CHECK IN ('visit','visit_procedure','prescription','prescription_item') | نوع الكيان المُصحَّح |
+| entity_id | INTEGER | NOT NULL | معرّف الكيان في جدوله |
+| action_type | TEXT | NOT NULL, CHECK IN ('insert','update','delete') | نوع التصحيح |
+| reason | TEXT | NOT NULL | سبب التصحيح (إلزامي) |
+| performed_by | TEXT | NOT NULL | نص حر، يملؤه التطبيق |
+| performed_at | TEXT | NOT NULL | ISO 8601 |
+| details_json | TEXT | NULL | تفاصيل اختيارية (JSON) |
+| created_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 11. settings
 
 - **الغرض:** إعدادات التطبيق.
 
-- **المفتاح الأساسي:** key (TEXT)
+- **الحذف:** لا حذف. التعديل عبر upsert.
 
-- **أمثلة:** backup_destination, backup_retention_days
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| key | TEXT | PK | مفتاح الإعداد |
+| value | TEXT | NOT NULL | القيمة (نص) |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
+
+- **أمثلة:** backup_destination, backup_retention_days, backup_enabled, default_copay_percentage.
 
 ## العلاقات الرئيسية
 
