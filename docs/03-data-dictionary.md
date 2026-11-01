@@ -114,33 +114,51 @@
 
 - **الغرض:** الإقامة، من الدخول إلى الخروج.
 
-- **المفتاح الأساسي:** id
-
-- **قيد فريد:** case_number (فريد عالميًا — D-004)
-
-- **المفاتيح الأجنبية:**
-
-  - patient_id → patients.id (RESTRICT)
-
-  - insurance_company_id → insurance_companies.id (RESTRICT، nullable)
-
-  - referred_entity_id → medical_entities.id (RESTRICT، nullable)
-
 - **الحذف:** لا حذف. الإغلاق عبر discharge_date.
+
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| patient_id | INTEGER | NOT NULL, FK → patients.id (RESTRICT) | |
+| case_number | TEXT | NOT NULL, UNIQUE | فريد عالميًا (D-004)، يُولَّد تلقائيًا |
+| admission_date | TEXT | NOT NULL | ISO 8601 |
+| discharge_date | TEXT | NULL | NULL = إقامة نشطة |
+| admission_status | TEXT | NOT NULL, CHECK IN ('stable','critical','emergency','under_observation') | |
+| contract_type | TEXT | NOT NULL, CHECK IN ('private','insurance') | |
+| insurance_company_id | INTEGER | NULL, FK → insurance_companies.id (RESTRICT) | إلزامي عندما contract_type = 'insurance' |
+| patient_copay_percentage | INTEGER | NOT NULL, DEFAULT 0, CHECK BETWEEN 0 AND 100 | يدعم شامل (0) وغير شامل (0-100) مستقبلًا |
+| referred_entity_id | INTEGER | NULL, FK → medical_entities.id (RESTRICT) | |
+| referred_entity_name_snapshot | TEXT | NULL | لقطة اسم الجهة وقت الدخول |
+| total_days | INTEGER | NULL | NULL = إقامة نشطة، ≥1 بعد الخروج |
+| total_gross_amount | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت، يُحدَّث عند تغيّر البنود |
+| patient_share_amount | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت |
+| insurer_share_amount | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت |
+| notes | TEXT | NULL | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 7. visit_procedures
 
 - **الغرض:** بنود الأشعة والتحاليل والإسعاف داخل الإقامة.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** لا حذف تاريخي. التصحيح عبر audit_log (D-006).
 
-- **المفاتيح الأجنبية:**
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| visit_id | INTEGER | NOT NULL, FK → visits.id (RESTRICT) | |
+| procedure_id | INTEGER | NOT NULL, FK → procedures.id (RESTRICT) | |
+| procedure_name_snapshot | TEXT | NOT NULL | لقطة اسم الإجراء |
+| procedure_category_snapshot | TEXT | NOT NULL, CHECK IN ('radiology','lab','ambulance') | لقطة التصنيف |
+| unit_price_snapshot | INTEGER | NOT NULL | بالقرش/السنت، لقطة السعر |
+| quantity | INTEGER | NOT NULL, DEFAULT 1, CHECK > 0 | |
+| row_total | INTEGER | NOT NULL | unit_price_snapshot × quantity |
+| procedure_date | TEXT | NOT NULL | مستقل عن admission_date |
+| notes | TEXT | NULL | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
-  - visit_id → visits.id (RESTRICT)
-
-  - procedure_id → procedures.id (RESTRICT)
-
-- **خصائص:** كل بند له تاريخ مستقل، وسعر لقطة.
+- **لا قيد فريد** على (visit_id, procedure_id): الإسعاف والتحاليل قد تتكرر في نفس اليوم.
 
 #### 8. prescriptions
 
