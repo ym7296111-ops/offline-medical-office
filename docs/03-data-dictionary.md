@@ -10,7 +10,7 @@
 
 - **اللقطات (Snapshots):** أي سعر أو اسم يُستخدم في فاتورة يُحفظ كلقطة داخل بند الحالة، ولا يتأثر بتغيّر الكتالوج لاحقًا.
 
-- **التواريخ:** `TEXT` بصيغة ISO 8601 `YYYY-MM-DD` للتواريخ، `YYYY-MM-DD HH:MM:SS` للطوابع الزمنية).
+- **التواريخ:** `TEXT` بصيغة ISO 8601: `YYYY-MM-DD` للتواريخ، `YYYY-MM-DD HH:MM:SS` للطوابع الزمنية.
 
 - **المفاتيح الأساسية:** `INTEGER PRIMARY KEY AUTOINCREMENT` (ما عدا `settings`).
 
@@ -28,53 +28,85 @@
 
 - **الغرض:** البيانات الدائمة للمريض.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** Soft-delete عبر is_active.
 
-- **قيد فريد:** file_number
-
-- **الحذف:** Soft-delete عبر is_active
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| file_number | TEXT | NOT NULL, UNIQUE | رقم الملف الثابت |
+| full_name | TEXT | NOT NULL | الاسم الكامل |
+| emergency_contact_phone | TEXT | NULL | هاتف الطوارئ |
+| companion_name | TEXT | NULL | اسم المرافق |
+| relationship | TEXT | NULL | صلة القرابة |
+| is_active | INTEGER | NOT NULL, DEFAULT 1, CHECK IN (0,1) | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 2. insurance_companies
 
 - **الغرض:** كتالوج شركات التأمين.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** Soft-delete.
 
-- **قيد فريد:** name
-
-- **الحذف:** Soft-delete
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| name | TEXT | NOT NULL, UNIQUE | اسم الشركة |
+| phone | TEXT | NULL | |
+| notes | TEXT | NULL | |
+| is_active | INTEGER | NOT NULL, DEFAULT 1, CHECK IN (0,1) | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 3. medical_entities
 
-- **الغرض:** كتالوج الجهات المحوّلة (مستشفيات).
+- **الغرض:** كتالوج الجهات المحوّلة.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** Soft-delete.
 
-- **قيد فريد:** name
-
-- **الحذف:** Soft-delete
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| name | TEXT | NOT NULL, UNIQUE | اسم الجهة |
+| entity_type | TEXT | NULL | اختياري: hospital / clinic / lab |
+| phone | TEXT | NULL | |
+| notes | TEXT | NULL | |
+| is_active | INTEGER | NOT NULL, DEFAULT 1, CHECK IN (0,1) | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 4. drugs
 
 - **الغرض:** كتالوج الأدوية مع آخر تسعير.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** Soft-delete.
 
-- **قيد فريد:** name
-
-- **الحذف:** Soft-delete
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| name | TEXT | NOT NULL, UNIQUE | اسم الدواء |
+| current_price | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت — آخر تسعير |
+| is_active | INTEGER | NOT NULL, DEFAULT 1, CHECK IN (0,1) | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
 #### 5. procedures
 
-- **الغرض:** كتالوج الإجراءات غير العلاجية (أشعة، تحاليل، إسعاف).
+- **الغرض:** كتالوج الإجراءات غير العلاجية.
 
-- **المفتاح الأساسي:** id
+- **الحذف:** Soft-delete.
 
-- **قيد فريد مركّب:** (name, category)
+| الحقل | النوع | القيود | ملاحظات |
+|---|---|---|---|
+| id | INTEGER | PK AUTOINCREMENT | |
+| name | TEXT | NOT NULL | اسم الإجراء |
+| category | TEXT | NOT NULL, CHECK IN ('radiology','lab','ambulance') | يميز النوع |
+| current_price | INTEGER | NOT NULL, DEFAULT 0 | بالقرش/السنت — آخر تسعير |
+| is_active | INTEGER | NOT NULL, DEFAULT 1, CHECK IN (0,1) | |
+| created_at | TEXT | NOT NULL | ISO 8601 |
+| updated_at | TEXT | NOT NULL | ISO 8601 |
 
-- **العمود المميز:** category — القيم: `radiology` | `lab` | `ambulance`
-
-- **الحذف:** Soft-delete
+- **قيد فريد مركّب:** UNIQUE (name, category)
 
 ### الطبقة 2 — البيانات الحركية
 
