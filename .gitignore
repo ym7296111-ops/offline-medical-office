@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build / release output
+dist/
+out/
+build/
+release/
+
+# Logs
+*.log
+
+# Environment and secrets
+.env
+.env.*
+secrets/
+*.key
+*.pem
+*.lic
+*.license
+license-private-key*
+
+# Databases
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Archives
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files (keep shared extensions recommendation)
+.vscode/*
+!.vscode/extensions.json
