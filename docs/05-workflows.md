@@ -129,11 +129,102 @@
 
 **الأثر:** DELETE في `visit_procedures`، UPDATE في `visits`.
 
+## WF-007 — إضافة روشتة علاج
+
+**المُدخل:** أثناء إقامة نشطة، إضافة بند علاج (روشتة) يحتوي عدة أدوية.
+
+**المسار الناجح:**
+1. التحقق أن الإقامة نشطة.
+2. إنشاء صف جديد في `prescriptions` مع `visit_id` و`prescription_date` (افتراضيًا اليوم).
+3. إضافة دواء: اختيار من `drugs`، عرض `current_price` كسعر مبدئي.
+4. إدخال `quantity` و`notes` (جرعة/تعليمات).
+5. تعديل السعر مسموح. عند الحفظ:
+   - UPDATE في `drugs.current_price` = السعر الفعلي (قاعدة "آخر تسعير").
+   - INSERT في `prescription_items` مع `drug_name_snapshot` و`unit_price_snapshot`.
+   - `row_total = unit_price_snapshot × quantity`.
+6. تكرار الخطوات 3–5 لكل دواء في الروشتة.
+7. بعد كل دواء: UPDATE في `prescriptions.total_amount` = مجموع `prescription_items.row_total`.
+8. بعد إغلاق الروشتة: إعادة حساب إجماليات `visits`.
+
+**الحالات الفاشلة/الحدّية:**
+- الإقامة مُغلقة → يُرفض.
+- روشتة بلا أدوية → لا تُحفظ (فشل).
+- `quantity <= 0` → يُرفض.
+- دواء معطّل → لا يظهر في الكتالوج.
+
+**الأثر:** INSERT في `prescriptions`، INSERT في `prescription_items` لكل دواء، UPDATE في `drugs` و`prescriptions` و`visits`.
+
+## WF-008 — تعديل أو حذف بند دواء
+
+**المُدخل:** تعديل كمية أو سعر دواء، أو حذف دواء من روشتة، أثناء إقامة نشطة.
+
+**المسار الناجح:**
+- **تعديل:**
+  1. اختيار البند من الروشتة.
+  2. تعديل الحقول المسموحة.
+  3. إعادة حساب `row_total`، UPDATE في `prescription_items`.
+  4. إن تغيّر السعر: UPDATE في `drugs.current_price`.
+  5. إعادة حساب `prescriptions.total_amount` وإجماليات `visits`.
+- **حذف:**
+  1. تأكيد الحذف.
+  2. DELETE من `prescription_items`.
+  3. إعادة حساب `prescriptions.total_amount` وإجماليات `visits`.
+  4. إذا حُذف آخر بند: تبقى الروشتة صفًا فارغًا، أو تُحذف بالكامل (قرار: تُحذف تلقائيًا إذا `total_amount = 0`).
+
+**الحالات الفاشلة/الحدّية:**
+- الإقامة مُغلقة → يُمنع التعديل/الحذف المباشر. التصحيح عبر WF-011.
+- `quantity <= 0` → يُرفض.
+
+**الأثر:** UPDATE في `prescription_items`/DELETE منها، UPDATE في `drugs` إن تغيّر السعر، UPDATE/DELETE في `prescriptions`، UPDATE في `visits`.
+
+## WF-009 — تسجيل خروج المريض
+
+**المُدخل:** إدخال `discharge_date` لإغلاق الإقامة.
+
+**المسار الناجح:**
+1. التحقق أن الإقامة نشطة (`discharge_date IS NULL`).
+2. التحقق أن `discharge_date >= admission_date`.
+3. حساب `total_days = max(1, عدد الأيام التقويمية بين admission_date و discharge_date)`.
+4. حساب الإجماليات النهائية:
+   - `total_gross_amount` = مجموع `visit_procedures.row_total` + مجموع `prescriptions.total_amount`.
+   - `patient_share_amount` = `total_gross_amount × patient_copay_percentage / 100`.
+   - `insurer_share_amount` = `total_gross_amount − patient_share_amount`.
+5. UPDATE في `visits`: set discharge_date, total_days, الإجماليات النهائية.
+6. الإقامة تصبح مغلقة. لا تُقبل إضافات جديدة إلا عبر تصحيح إداري (WF-011).
+
+**الحالات الفاشلة/الحدّية:**
+- `discharge_date < admission_date` → يُرفض.
+- الإقامة مغلقة مسبقًا → يُرفض.
+- خروج في نفس يوم الدخول → `total_days = 1` (D-001 في scope).
+- إقامة بلا بنود → الإجماليات = 0، والتقرير يُصدر فارغًا.
+
+**الأثر:** UPDATE في `visits` فقط.
+
+## WF-010 — إصدار تقرير الخروج
+
+**المُدخل:** عرض/تصدير تقرير الإقامة بعد الخروج.
+
+**المسار الناجح:**
+1. التحقق أن الإقامة مغلقة (`discharge_date IS NOT NULL`).
+2. جمع البيانات:
+   - بيانات المريض من `patients`.
+   - بيانات الإقامة من `visits`.
+   - بنود الإجراءات من `visit_procedures`.
+   - الروشتات من `prescriptions` + `prescription_items`.
+   - سجلات التصحيح من `audit_log` (إن وجدت).
+3. عرض التقرير: الأيام، الإجماليات، حصة المريض، حصة التأمين، قائمة البنود، سجلات التصحيح إن وجدت.
+4. تصدير PDF أو طباعة A4 (تفاصيل التصدير تُصمم في مرحلة لاحقة).
+
+**الحالات الفاشلة/الحدّية:**
+- الإقامة نشطة → يُرفض التقرير النهائي. يمكن عرض "تقرير مؤقت".
+- إقامة بلا بنود → تقرير بإجماليات صفرية.
+
+**الأثر:** قراءة فقط. لا كتابة.
+
 ## خارج نطاق هذه الدفعة
 
-- سيناريوهات الروشتة (WF-007 وما بعده).
-- سيناريوهات الخروج والتقرير.
-- سيناريوهات التصحيح الإداري.
+- سيناريوهات التصحيح الإداري بعد الخروج.
 - سيناريوهات إدارة الكتالوجات.
+- سيناريوهات النسخ الاحتياطي.
 
-هذه في الدفعتين 2 و3.
+هذه في الدفعة 3.
