@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('api', {
   },
   procedures: {
     list: () => ipcRenderer.invoke('procedures:list'),
+    listAll: () => ipcRenderer.invoke('procedures:listAll'),
+    create: (input: any) => ipcRenderer.invoke('procedures:create', input),
+    toggle: (id: number) => ipcRenderer.invoke('procedures:toggle', id),
   },
   visitProcedures: {
     add: (input: any) => ipcRenderer.invoke('visit_procedures:add', input),
