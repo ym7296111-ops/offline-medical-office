@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
+import { initDatabase } from './db/connection';
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -25,6 +26,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  initDatabase();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
