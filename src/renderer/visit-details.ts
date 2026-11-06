@@ -1,10 +1,17 @@
 import {
+  addPrescriptionItem,
   addVisitProcedure,
+  createPrescription,
+  deletePrescriptionItem,
   deleteVisitProcedure,
   dischargeVisit,
   getVisit,
+  listActiveDrugs,
+  listPrescriptionsByVisit,
   listProcedures,
   listVisitProcedures,
+  type DrugRow,
+  type PrescriptionWithItemsRow,
   type ProcedureRow,
   type VisitProcedureRow,
   type VisitWithPatientRow
@@ -42,9 +49,26 @@ const totalGrossEl = document.getElementById('totalGross') as HTMLSpanElement;
 const patientShareEl = document.getElementById('patientShare') as HTMLSpanElement;
 const insurerShareEl = document.getElementById('insurerShare') as HTMLSpanElement;
 
+const prescriptionSection = document.getElementById('prescriptionSection') as HTMLDivElement;
+const btnNewPrescription = document.getElementById('btnNewPrescription') as HTMLButtonElement;
+const rxMessageEl = document.getElementById('rxMessage') as HTMLSpanElement;
+const prescriptionListEl = document.getElementById('prescriptionList') as HTMLDivElement;
+const rxEmptyState = document.getElementById('rxEmptyState') as HTMLParagraphElement;
+const rxForm = document.getElementById('rxItemForm') as HTMLFormElement;
+const rxPrescriptionSelect = document.getElementById('rxPrescription') as HTMLSelectElement;
+const rxDrugSelect = document.getElementById('rxDrug') as HTMLSelectElement;
+const rxQuantityInput = document.getElementById('rxQuantity') as HTMLInputElement;
+const rxUnitPriceInput = document.getElementById('rxUnitPrice') as HTMLInputElement;
+const rxNotesInput = document.getElementById('rxNotes') as HTMLInputElement;
+const rxSubmitBtn = document.getElementById('rxSubmitBtn') as HTMLButtonElement;
+const rxTotalHint = document.getElementById('rxTotalHint') as HTMLSpanElement;
+const rxFormMessageEl = document.getElementById('rxFormMessage') as HTMLParagraphElement;
+
 let visitId: number | null = null;
 let visit: VisitWithPatientRow | null = null;
 let procedures: ProcedureRow[] = [];
+let drugs: DrugRow[] = [];
+let prescriptions: PrescriptionWithItemsRow[] = [];
 
 function setMessage(el: HTMLElement, text: string, kind: 'ok' | 'error' | 'idle'): void {
   el.textContent = text;
@@ -180,6 +204,245 @@ btnDischarge.addEventListener('click', async () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// العلاج (الروشتة) — WF-007 / WF-008
+// ---------------------------------------------------------------------------
+
+function setRxMessage(el: HTMLElement, text: string, kind: 'ok' | 'error' | 'idle'): void {
+  setMessage(el, text, kind);
+}
+
+/** Rebuilds a <select> keeping its first placeholder option. */
+function rebuildSelect(
+  select: HTMLSelectElement,
+  items: { value: string; label: string }[]
+): void {
+  const placeholder = select.firstElementChild;
+  const rebuilt: HTMLElement[] = [];
+  if (placeholder) rebuilt.push(placeholder as HTMLElement);
+  for (const item of items) {
+    const option = document.createElement('option');
+    option.value = item.value;
+    option.textContent = item.label;
+    rebuilt.push(option);
+  }
+  select.replaceChildren(...rebuilt);
+}
+
+function renderPrescriptionSelect(): void {
+  const previous = rxPrescriptionSelect.value;
+  rebuildSelect(
+    rxPrescriptionSelect,
+    prescriptions.map((rx) => ({
+      value: String(rx.id),
+      label: `روشتة ${rx.prescription_date} — ${formatMoney(rx.total_amount)} (${rx.items.length} دواء)`
+    }))
+  );
+  // Keep the user's choice across a refresh when it still exists.
+  if (prescriptions.some((rx) => String(rx.id) === previous)) {
+    rxPrescriptionSelect.value = previous;
+  }
+  updateRxTotalHint();
+}
+
+/** Shows the running total of the prescription currently selected in the form. */
+function updateRxTotalHint(): void {
+  const selected = prescriptions.find((rx) => String(rx.id) === rxPrescriptionSelect.value);
+  rxTotalHint.textContent = formatMoney(selected ? selected.total_amount : 0);
+}
+
+/** One read-only table per prescription, with a delete button per drug. */
+function renderPrescriptions(rows: PrescriptionWithItemsRow[]): void {
+  const cards = rows.map((rx) => {
+    const card = document.createElement('div');
+    card.className = 'rx';
+
+    const head = document.createElement('div');
+    head.className = 'rx-head';
+    const title = document.createElement('h3');
+    title.textContent = `روشتة ${rx.prescription_date}`;
+    head.appendChild(title);
+
+    if (rx.notes) {
+      const meta = document.createElement('span');
+      meta.className = 'rx-meta';
+      meta.textContent = rx.notes;
+      head.appendChild(meta);
+    }
+
+    const total = document.createElement('span');
+    total.className = 'rx-total';
+    total.textContent = `الإجمالي: ${formatMoney(rx.total_amount)}`;
+    head.appendChild(total);
+    card.appendChild(head);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    for (const label of ['الدواء', 'الكمية', 'سعر الوحدة', 'الإجمالي', 'الجرعة / التعليمات', 'إجراء']) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const item of rx.items) {
+      const tr = document.createElement('tr');
+      tr.appendChild(textCell(item.drug_name_snapshot));
+      tr.appendChild(textCell(String(item.quantity)));
+      tr.appendChild(textCell(formatMoney(item.unit_price_snapshot)));
+      tr.appendChild(textCell(formatMoney(item.row_total)));
+      tr.appendChild(textCell(item.notes ?? '—'));
+
+      const tdAction = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'danger';
+      btn.textContent = 'حذف';
+      btn.addEventListener('click', () => void handleDeleteRxItem(item.id));
+      tdAction.appendChild(btn);
+      tr.appendChild(tdAction);
+
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    card.appendChild(table);
+
+    return card;
+  });
+
+  prescriptionListEl.replaceChildren(...cards);
+  const isEmpty = cards.length === 0;
+  rxEmptyState.classList.toggle('hidden', !isEmpty);
+}
+
+function renderDrugSelect(items: DrugRow[]): void {
+  rebuildSelect(
+    rxDrugSelect,
+    items.map((drug) => ({
+      value: String(drug.id),
+      label: `${drug.name} — ${formatMoney(drug.current_price)}`
+    }))
+  );
+}
+
+/** Selecting a drug pre-fills its current catalog price and the prescription's running total. */
+rxDrugSelect.addEventListener('change', () => {
+  const selected = drugs.find((d) => String(d.id) === rxDrugSelect.value);
+  if (selected) rxUnitPriceInput.value = String(selected.current_price);
+});
+
+rxPrescriptionSelect.addEventListener('change', updateRxTotalHint);
+
+btnNewPrescription.addEventListener('click', async () => {
+  if (visitId === null) return;
+
+  btnNewPrescription.disabled = true;
+  setRxMessage(rxMessageEl, 'جاري إنشاء الروشتة...', 'idle');
+
+  try {
+    // WF-007 step 2: prescription_date defaults to today.
+    await createPrescription({
+      visit_id: visitId,
+      prescription_date: todayLocalIso(),
+      notes: null
+    });
+    setRxMessage(rxMessageEl, 'تم إنشاء روشتة جديدة.', 'ok');
+    await refreshPrescriptions(true);
+  } catch (error: any) {
+    setRxMessage(rxMessageEl, error.message, 'error');
+  } finally {
+    btnNewPrescription.disabled = false;
+  }
+});
+
+async function handleDeleteRxItem(itemId: number): Promise<void> {
+  setMessage(rxFormMessageEl, 'جاري الحذف...', 'idle');
+  try {
+    const result = await deletePrescriptionItem(itemId);
+    setMessage(
+      rxFormMessageEl,
+      result.deleted_prescription ? 'تم حذف آخر دواء، وحُذفت الروشتة الفارغة.' : 'تم حذف الدواء.',
+      'ok'
+    );
+    await refresh();
+  } catch (error: any) {
+    setMessage(rxFormMessageEl, error.message, 'error');
+  }
+}
+
+rxForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (visitId === null) {
+    setMessage(rxFormMessageEl, 'رقم الإقامة غير صالح.', 'error');
+    return;
+  }
+
+  const prescriptionId = rxPrescriptionSelect.value ? Number(rxPrescriptionSelect.value) : null;
+  if (!prescriptionId) {
+    setMessage(rxFormMessageEl, 'يجب اختيار الروشتة أولًا.', 'error');
+    return;
+  }
+
+  const drugId = rxDrugSelect.value ? Number(rxDrugSelect.value) : null;
+  if (!drugId) {
+    setMessage(rxFormMessageEl, 'يجب اختيار الدواء.', 'error');
+    return;
+  }
+
+  const quantity = Number(rxQuantityInput.value || 1);
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    setMessage(rxFormMessageEl, 'الكمية يجب أن تكون 1 على الأقل.', 'error');
+    return;
+  }
+
+  setMessage(rxFormMessageEl, 'جاري الحفظ...', 'idle');
+  rxSubmitBtn.disabled = true;
+
+  try {
+    await addPrescriptionItem({
+      prescription_id: prescriptionId,
+      drug_id: drugId,
+      quantity,
+      unit_price: Number(rxUnitPriceInput.value),
+      notes: rxNotesInput.value || null
+    });
+    setMessage(rxFormMessageEl, 'تمت إضافة الدواء للروشتة!', 'ok');
+    rxQuantityInput.value = '1';
+    rxNotesInput.value = '';
+    // A price override rewrites the catalog, so re-read the drug list too.
+    await refresh();
+  } catch (error: any) {
+    setMessage(rxFormMessageEl, error.message, 'error');
+  } finally {
+    rxSubmitBtn.disabled = false;
+  }
+});
+
+/** Reloads the drug catalog and the visit's prescriptions. */
+async function refreshPrescriptions(selectNewest = false): Promise<void> {
+  if (visitId === null) return;
+  try {
+    drugs = await listActiveDrugs();
+    renderDrugSelect(drugs);
+
+    prescriptions = await listPrescriptionsByVisit(visitId);
+    renderPrescriptions(prescriptions);
+    renderPrescriptionSelect();
+
+    // After creating a prescription, jump the form to the newest one for convenience.
+    if (selectNewest && prescriptions.length > 0) {
+      const newest = prescriptions[prescriptions.length - 1];
+      rxPrescriptionSelect.value = String(newest.id);
+      updateRxTotalHint();
+    }
+  } catch (error: any) {
+    setMessage(rxFormMessageEl, error.message, 'error');
+  }
+}
+
 /** Loads the visit, its line items, and the catalog. */
 async function refresh(): Promise<void> {
   if (visitId === null) return;
@@ -193,13 +456,24 @@ async function refresh(): Promise<void> {
 
     const isOpen = visit.discharge_date === null;
     procedureSection.classList.toggle('hidden', !isOpen);
+    // WF-007/WF-008: a closed visit accepts no new drugs and no deletions.
+    prescriptionSection.classList.toggle('hidden', !isOpen);
     renderDischargeBar(visit);
+
+    await refreshPrescriptions();
+    // Prescriptions change the gross, which renderTotals above already read — re-read it.
+    if (visitId !== null) {
+      visit = await getVisit(visitId);
+      renderTotals(visit);
+    }
+
     if (!isOpen) {
-      setMessage(loadMessageEl, 'هذه الإقامة مغلقة — لا يمكن إضافة إجراءات جديدة.', 'error');
+      setMessage(loadMessageEl, 'هذه الإقامة مغلقة — لا يمكن إضافة إجراءات أو أدوية جديدة.', 'error');
     }
   } catch (error: any) {
     setMessage(loadMessageEl, error.message, 'error');
     procedureSection.classList.add('hidden');
+    prescriptionSection.classList.add('hidden');
   }
 }
 
@@ -261,6 +535,7 @@ async function init(): Promise<void> {
   if (visitId === null) {
     setMessage(loadMessageEl, 'لم يتم تحديد إقامة صالحة. يجب فتح الصفحة بالشكل: visit-details.html?id=<رقم>', 'error');
     procedureSection.classList.add('hidden');
+    prescriptionSection.classList.add('hidden');
     return;
   }
 

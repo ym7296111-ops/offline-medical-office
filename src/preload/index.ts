@@ -35,6 +35,12 @@ contextBridge.exposeInMainWorld('api', {
     create: (input: any) => ipcRenderer.invoke('drugs:create', input),
     toggle: (id: number) => ipcRenderer.invoke('drugs:toggle', id),
   },
+  prescriptions: {
+    create: (input: any) => ipcRenderer.invoke('prescriptions:create', input),
+    addItem: (input: any) => ipcRenderer.invoke('prescriptions:addItem', input),
+    deleteItem: (itemId: number) => ipcRenderer.invoke('prescriptions:deleteItem', itemId),
+    listByVisit: (visitId: number) => ipcRenderer.invoke('prescriptions:listByVisit', visitId),
+  },
   visitProcedures: {
     add: (input: any) => ipcRenderer.invoke('visit_procedures:add', input),
     listByVisit: (visitId: number) => ipcRenderer.invoke('visit_procedures:listByVisit', visitId),

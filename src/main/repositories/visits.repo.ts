@@ -1,5 +1,6 @@
 import { getDb } from '../db/connection';
 import { CreateVisitInput } from '../../shared/schemas/visit';
+import { recalculateVisitTotals } from './visitProcedures.repo';
 
 /** Extracts a YYYY year from an ISO date string, falling back to the current year. */
 function resolveYear(admissionDate: string): number {
@@ -148,32 +149,23 @@ export function dischargeVisit(visitId: number, dischargeDate: string) {
 
     const totalDays = calendarDaysInclusive(admissionDay, dischargeDay);
 
-    // WF-009 step 4. Recompute from the line items so a stale running total can never
-    // be frozen into a closed visit; prescriptions are intentionally excluded (C9 scope).
-    const sum = db
-      .prepare('SELECT COALESCE(SUM(row_total), 0) AS gross FROM visit_procedures WHERE visit_id = ?')
-      .get(visitId) as { gross: number };
-
-    const gross = sum.gross;
-    const patientShare = Math.floor((gross * visit.patient_copay_percentage) / 100);
-    const insurerShare = gross - patientShare;
+    // WF-009 step 4. Recompute from the line items so a stale running total can never be
+    // frozen into a closed visit. The gross must cover visit_procedures *and*
+    // prescriptions, so it is delegated to the one helper that owns that rule rather than
+    // being re-derived here (a second copy of the formula is exactly how C10.2 silently
+    // dropped treatment charges from the final total).
+    recalculateVisitTotals(visitId);
 
     db.prepare(
       `UPDATE visits
           SET discharge_date = @discharge_date,
               total_days = @total_days,
-              total_gross_amount = @gross,
-              patient_share_amount = @patient_share,
-              insurer_share_amount = @insurer_share,
               updated_at = @updated_at
         WHERE id = @id`
     ).run({
       id: visitId,
       discharge_date: dischargeDay,
       total_days: totalDays,
-      gross,
-      patient_share: patientShare,
-      insurer_share: insurerShare,
       updated_at: new Date().toISOString()
     });
 
