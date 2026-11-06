@@ -9,10 +9,15 @@ const tableBody = document.querySelector('#patientsTable tbody') as HTMLTableSec
 async function loadPatients() {
   try {
     const patients = await listPatients();
-    tableBody.innerHTML = '';
+    tableBody.replaceChildren();
     patients.forEach((p: any) => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${p.file_number}</td><td>${p.full_name}</td>`;
+      const tdFile = document.createElement('td');
+      tdFile.textContent = p.file_number;
+      const tdName = document.createElement('td');
+      tdName.textContent = p.full_name;
+      tr.appendChild(tdFile);
+      tr.appendChild(tdName);
       tableBody.appendChild(tr);
     });
   } catch (error: any) {

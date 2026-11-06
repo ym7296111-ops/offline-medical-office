@@ -16,6 +16,17 @@ export function registerPatientHandlers() {
           error: { code: 'VALIDATION_ERROR', message: error.issues[0].message }
         };
       }
+
+      // Handle SQLite Unique constraint violation.
+      // better-sqlite3 throws an instance of its SqliteError class (name 'SqliteError')
+      // carrying the SQLite extended result code, e.g. 'SQLITE_CONSTRAINT_UNIQUE'.
+      if (error instanceof Error && 'code' in error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return {
+          success: false,
+          error: { code: 'CONFLICT', message: 'رقم الملف مستخدم بالفعل' }
+        };
+      }
+
       return {
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'حدث خطأ غير متوقع' }
