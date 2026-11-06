@@ -7,9 +7,11 @@ import {
   dischargeVisit,
   getVisit,
   listActiveDrugs,
+  listCorrectionsByVisit,
   listPrescriptionsByVisit,
   listProcedures,
   listVisitProcedures,
+  type AuditLogRow,
   type DrugRow,
   type PrescriptionWithItemsRow,
   type ProcedureRow,
@@ -63,6 +65,12 @@ const rxNotesInput = document.getElementById('rxNotes') as HTMLInputElement;
 const rxSubmitBtn = document.getElementById('rxSubmitBtn') as HTMLButtonElement;
 const rxTotalHint = document.getElementById('rxTotalHint') as HTMLSpanElement;
 const rxFormMessageEl = document.getElementById('rxFormMessage') as HTMLParagraphElement;
+
+const correctionBar = document.getElementById('correctionBar') as HTMLDivElement;
+const correctionReasonInput = document.getElementById('correctionReason') as HTMLInputElement;
+const correctionMessageEl = document.getElementById('correctionMessage') as HTMLSpanElement;
+const auditTableBody = document.querySelector('#auditTable tbody') as HTMLTableSectionElement;
+const auditEmptyState = document.getElementById('auditEmptyState') as HTMLParagraphElement;
 
 let visitId: number | null = null;
 let visit: VisitWithPatientRow | null = null;
@@ -359,9 +367,12 @@ btnNewPrescription.addEventListener('click', async () => {
 });
 
 async function handleDeleteRxItem(itemId: number): Promise<void> {
+  const correction = readCorrectionReason();
+  if (!correction.ok) return;
+
   setMessage(rxFormMessageEl, 'جاري الحذف...', 'idle');
   try {
-    const result = await deletePrescriptionItem(itemId);
+    const result = await deletePrescriptionItem(itemId, correction.reason);
     setMessage(
       rxFormMessageEl,
       result.deleted_prescription ? 'تم حذف آخر دواء، وحُذفت الروشتة الفارغة.' : 'تم حذف الدواء.',
@@ -398,6 +409,9 @@ rxForm.addEventListener('submit', async (e) => {
     return;
   }
 
+  const correction = readCorrectionReason();
+  if (!correction.ok) return;
+
   setMessage(rxFormMessageEl, 'جاري الحفظ...', 'idle');
   rxSubmitBtn.disabled = true;
 
@@ -407,7 +421,8 @@ rxForm.addEventListener('submit', async (e) => {
       drug_id: drugId,
       quantity,
       unit_price: Number(rxUnitPriceInput.value),
-      notes: rxNotesInput.value || null
+      notes: rxNotesInput.value || null,
+      correction_reason: correction.reason ?? null
     });
     setMessage(rxFormMessageEl, 'تمت إضافة الدواء للروشتة!', 'ok');
     rxQuantityInput.value = '1';
@@ -443,6 +458,95 @@ async function refreshPrescriptions(selectNewest = false): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// التصحيح الإداري — WF-011 / D-006
+// ---------------------------------------------------------------------------
+
+const ENTITY_LABELS: Record<string, string> = {
+  visit: 'الإقامة',
+  visit_procedure: 'إجراء',
+  prescription: 'روشتة',
+  prescription_item: 'دواء في روشتة'
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  insert: 'إضافة',
+  update: 'تعديل',
+  delete: 'حذف'
+};
+
+/**
+ * Reads the correction reason the user typed.
+ *
+ * Returns `{ ok: true, reason }` (reason may be undefined on an open visit, where it is
+ * ignored), or `{ ok: false }` after showing the error, in which case the caller must abort.
+ */
+function readCorrectionReason(): { ok: boolean; reason?: string } {
+  const isClosed = visit !== null && visit.discharge_date !== null;
+  const raw = correctionReasonInput.value.trim();
+
+  if (!isClosed) return { ok: true, reason: undefined };
+
+  if (raw.length === 0) {
+    setMessage(correctionMessageEl, 'يجب تقديم سبب التصحيح للإقامة المغلقة.', 'error');
+    correctionReasonInput.focus();
+    return { ok: false };
+  }
+  return { ok: true, reason: raw };
+}
+
+/** One human-readable line summarising `details_json`, without ever parsing untrusted HTML. */
+function summariseDetails(detailsJson: string | null): string {
+  if (!detailsJson) return '—';
+  try {
+    const parsed = JSON.parse(detailsJson) as Record<string, unknown>;
+    const parts: string[] = [];
+    const name = parsed.procedure_name_snapshot ?? parsed.drug_name_snapshot;
+    if (typeof name === 'string') parts.push(name);
+    if (typeof parsed.quantity === 'number') parts.push(`× ${parsed.quantity}`);
+    if (typeof parsed.row_total === 'number') parts.push(`= ${formatMoney(parsed.row_total)}`);
+    if (typeof parsed.unit_price_snapshot === 'number') parts.push(`سعر ${formatMoney(parsed.unit_price_snapshot)}`);
+    return parts.length > 0 ? parts.join(' ') : detailsJson;
+  } catch {
+    // Not valid JSON: show it verbatim as text rather than pretending it is empty.
+    return detailsJson;
+  }
+}
+
+function renderAuditLog(rows: AuditLogRow[]): void {
+  const built = rows.map((row) => {
+    const tr = document.createElement('tr');
+
+    tr.appendChild(textCell(row.performed_at));
+
+    const tdAction = document.createElement('td');
+    const action = document.createElement('span');
+    action.className = `audit-action-${row.action_type}`;
+    action.textContent = ACTION_LABELS[row.action_type] ?? row.action_type;
+    tdAction.appendChild(action);
+    tr.appendChild(tdAction);
+
+    tr.appendChild(textCell(`${ENTITY_LABELS[row.entity_type] ?? row.entity_type} #${row.entity_id}`));
+    tr.appendChild(textCell(row.reason));
+    tr.appendChild(textCell(row.performed_by));
+    tr.appendChild(textCell(summariseDetails(row.details_json)));
+
+    return tr;
+  });
+
+  auditTableBody.replaceChildren(...built);
+  auditEmptyState.classList.toggle('hidden', built.length > 0);
+}
+
+async function refreshAuditLog(): Promise<void> {
+  if (visitId === null) return;
+  try {
+    renderAuditLog(await listCorrectionsByVisit(visitId));
+  } catch (error: any) {
+    setMessage(correctionMessageEl, error.message, 'error');
+  }
+}
+
 /** Loads the visit, its line items, and the catalog. */
 async function refresh(): Promise<void> {
   if (visitId === null) return;
@@ -455,9 +559,12 @@ async function refresh(): Promise<void> {
     renderTotals(visit);
 
     const isOpen = visit.discharge_date === null;
-    procedureSection.classList.toggle('hidden', !isOpen);
-    // WF-007/WF-008: a closed visit accepts no new drugs and no deletions.
-    prescriptionSection.classList.toggle('hidden', !isOpen);
+
+    // WF-011: a closed visit is not read-only any more — it switches to correction mode.
+    // The forms stay available, but every mutation then requires a reason.
+    procedureSection.classList.remove('hidden');
+    prescriptionSection.classList.remove('hidden');
+    correctionBar.classList.toggle('hidden', isOpen);
     renderDischargeBar(visit);
 
     await refreshPrescriptions();
@@ -467,8 +574,14 @@ async function refresh(): Promise<void> {
       renderTotals(visit);
     }
 
+    await refreshAuditLog();
+
     if (!isOpen) {
-      setMessage(loadMessageEl, 'هذه الإقامة مغلقة — لا يمكن إضافة إجراءات أو أدوية جديدة.', 'error');
+      setMessage(
+        loadMessageEl,
+        'هذه الإقامة مغلقة — التعديل متاح فقط عبر التصحيح الإداري بسبب إلزامي.',
+        'idle'
+      );
     }
   } catch (error: any) {
     setMessage(loadMessageEl, error.message, 'error');
@@ -478,9 +591,12 @@ async function refresh(): Promise<void> {
 }
 
 async function handleDelete(id: number): Promise<void> {
+  const correction = readCorrectionReason();
+  if (!correction.ok) return;
+
   setMessage(messageEl, 'جاري الحذف...', 'idle');
   try {
-    await deleteVisitProcedure(id);
+    await deleteVisitProcedure(id, correction.reason);
     setMessage(messageEl, 'تم حذف البند.', 'ok');
     await refresh();
   } catch (error: any) {
@@ -501,6 +617,9 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
+  const correction = readCorrectionReason();
+  if (!correction.ok) return;
+
   setMessage(messageEl, 'جاري الحفظ...', 'idle');
   submitBtn.disabled = true;
 
@@ -511,7 +630,8 @@ form.addEventListener('submit', async (e) => {
       quantity: Number(quantityInput.value || 1),
       unit_price: Number(priceInput.value),
       procedure_date: dateInput.value,
-      notes: notesInput.value || null
+      notes: notesInput.value || null,
+      correction_reason: correction.reason ?? null
     });
     setMessage(messageEl, 'تمت إضافة الإجراء بنجاح!', 'ok');
     quantityInput.value = '1';

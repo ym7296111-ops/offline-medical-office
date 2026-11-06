@@ -38,12 +38,17 @@ contextBridge.exposeInMainWorld('api', {
   prescriptions: {
     create: (input: any) => ipcRenderer.invoke('prescriptions:create', input),
     addItem: (input: any) => ipcRenderer.invoke('prescriptions:addItem', input),
-    deleteItem: (itemId: number) => ipcRenderer.invoke('prescriptions:deleteItem', itemId),
+    deleteItem: (itemId: number, correctionReason?: string) =>
+      ipcRenderer.invoke('prescriptions:deleteItem', itemId, correctionReason),
     listByVisit: (visitId: number) => ipcRenderer.invoke('prescriptions:listByVisit', visitId),
+  },
+  audit: {
+    listByVisit: (visitId: number) => ipcRenderer.invoke('audit:listByVisit', visitId),
   },
   visitProcedures: {
     add: (input: any) => ipcRenderer.invoke('visit_procedures:add', input),
     listByVisit: (visitId: number) => ipcRenderer.invoke('visit_procedures:listByVisit', visitId),
-    delete: (id: number) => ipcRenderer.invoke('visit_procedures:delete', id),
+    delete: (id: number, correctionReason?: string) =>
+      ipcRenderer.invoke('visit_procedures:delete', id, correctionReason),
   }
 });

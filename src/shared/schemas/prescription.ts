@@ -13,5 +13,7 @@ export const AddPrescriptionItemInput = z.object({
   quantity: z.number().int().min(1).default(1),
   unit_price: z.number().int().min(0).optional(), // override catalog price
   notes: z.string().optional().nullable(), // dosage instructions
+  // WF-011: only meaningful on a discharged visit, where it is mandatory and logged.
+  correction_reason: z.string().optional().nullable(),
 });
 export type AddPrescriptionItemInput = z.infer<typeof AddPrescriptionItemInput>;

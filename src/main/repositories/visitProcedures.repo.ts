@@ -1,5 +1,12 @@
 import { getDb } from '../db/connection';
 import { AddVisitProcedureInput } from '../../shared/schemas/visitProcedure';
+import { logCorrection } from './auditLog.repo';
+
+/**
+ * WF-011 needs `performed_by`, but the app has no authentication yet. Centralised here so
+ * there is exactly one place to change when a real user identity exists.
+ */
+const CORRECTION_PERFORMED_BY = 'admin';
 
 interface VisitRow {
   id: number;
@@ -67,7 +74,32 @@ export function recalculateVisitTotals(visitId: number): void {
   });
 }
 
-function getActiveVisit(visitId: number): VisitRow {
+/**
+ * WF-011 guard: on an *open* visit everything behaves as before and the reason is ignored.
+ * On a *closed* visit the mutation is allowed only with a non-empty correction reason,
+ * which the caller must then log in the same transaction.
+ *
+ * Returns the normalised reason (or null when the visit is open / no reason was given).
+ */
+function requireCorrectionReason(visit: VisitRow, correctionReason: string | null | undefined): string | null {
+  const reason = typeof correctionReason === 'string' ? correctionReason.trim() : '';
+
+  if (visit.discharge_date === null) {
+    // WF-011 step 4: on an active visit the reason carries no meaning.
+    return null;
+  }
+
+  if (reason.length === 0) {
+    const error = new Error('يجب تقديم سبب التصحيح للإقامة المغلقة');
+    (error as { code?: string }).code = 'CORRECTION_REASON_REQUIRED';
+    throw error;
+  }
+
+  return reason;
+}
+
+/** Fetches a visit regardless of state; throws NOT_FOUND when it does not exist. */
+function getVisitOrThrow(visitId: number): VisitRow {
   const db = getDb();
   const visit = db
     .prepare('SELECT id, discharge_date, patient_copay_percentage FROM visits WHERE id = ?')
@@ -77,11 +109,6 @@ function getActiveVisit(visitId: number): VisitRow {
     (error as { code?: string }).code = 'NOT_FOUND';
     throw error;
   }
-  if (visit.discharge_date !== null) {
-    const error = new Error('الإقامة مغلقة');
-    (error as { code?: string }).code = 'VISIT_CLOSED';
-    throw error;
-  }
   return visit;
 }
 
@@ -89,8 +116,12 @@ export function addProcedure(input: AddVisitProcedureInput) {
   const db = getDb();
 
   const run = db.transaction(() => {
-    // WF-003 step 1: the visit must be open.
-    getActiveVisit(input.visit_id);
+    // WF-003 step 1 normally requires an open visit; WF-011 extends this to a closed
+    // visit when an administrative correction reason is supplied.
+    const correctionReason = requireCorrectionReason(
+      getVisitOrThrow(input.visit_id),
+      input.correction_reason
+    );
 
     const procedure = db
       .prepare('SELECT id, name, category, current_price, is_active FROM procedures WHERE id = ?')
@@ -142,6 +173,28 @@ export function addProcedure(input: AddVisitProcedureInput) {
 
     recalculateVisitTotals(input.visit_id);
 
+    // WF-011 step 4: the mutation and its audit record share one transaction.
+    if (correctionReason !== null) {
+      logCorrection({
+        visit_id: input.visit_id,
+        entity_type: 'visit_procedure',
+        entity_id: Number(result.lastInsertRowid),
+        action_type: 'insert',
+        reason: correctionReason,
+        performed_by: CORRECTION_PERFORMED_BY,
+        details_json: JSON.stringify({
+          procedure_id: procedure.id,
+          procedure_name: procedure.name,
+          procedure_category: procedure.category,
+          unit_price_snapshot: unitPriceSnapshot,
+          quantity: input.quantity,
+          row_total: rowTotal,
+          procedure_date: input.procedure_date,
+          notes: input.notes || null
+        })
+      });
+    }
+
     return db.prepare('SELECT * FROM visit_procedures WHERE id = ?').get(result.lastInsertRowid);
   });
 
@@ -155,24 +208,57 @@ export function listByVisit(visitId: number) {
     .all(visitId);
 }
 
-export function deleteProcedure(id: number) {
+export function deleteProcedure(id: number, correctionReason?: string | null) {
   const db = getDb();
 
   const run = db.transaction(() => {
-    const row = db
-      .prepare('SELECT id, visit_id FROM visit_procedures WHERE id = ?')
-      .get(id) as { id: number; visit_id: number } | undefined;
+    const row = db.prepare('SELECT * FROM visit_procedures WHERE id = ?').get(id) as
+      | {
+          id: number;
+          visit_id: number;
+          procedure_id: number;
+          procedure_name_snapshot: string;
+          procedure_category_snapshot: string;
+          unit_price_snapshot: number;
+          quantity: number;
+          row_total: number;
+          procedure_date: string;
+          notes: string | null;
+        }
+      | undefined;
     if (!row) {
       const error = new Error('البند غير موجود');
       (error as { code?: string }).code = 'NOT_FOUND';
       throw error;
     }
 
-    // Only an open visit may be modified (WF-003 / WF-006 rules).
-    getActiveVisit(row.visit_id);
+    // WF-003 / WF-006 for an open visit; WF-011 allows a closed one with a reason.
+    const reason = requireCorrectionReason(getVisitOrThrow(row.visit_id), correctionReason);
 
     db.prepare('DELETE FROM visit_procedures WHERE id = ?').run(id);
     recalculateVisitTotals(row.visit_id);
+
+    if (reason !== null) {
+      // The row is gone, so the audit entry is the only remaining record of it.
+      logCorrection({
+        visit_id: row.visit_id,
+        entity_type: 'visit_procedure',
+        entity_id: row.id,
+        action_type: 'delete',
+        reason,
+        performed_by: CORRECTION_PERFORMED_BY,
+        details_json: JSON.stringify({
+          procedure_id: row.procedure_id,
+          procedure_name_snapshot: row.procedure_name_snapshot,
+          procedure_category_snapshot: row.procedure_category_snapshot,
+          unit_price_snapshot: row.unit_price_snapshot,
+          quantity: row.quantity,
+          row_total: row.row_total,
+          procedure_date: row.procedure_date,
+          notes: row.notes
+        })
+      });
+    }
 
     return { id, visit_id: row.visit_id };
   });
