@@ -1,6 +1,7 @@
 import type { CreateInsuranceCompanyInput, CreateMedicalEntityInput } from '../shared/schemas/catalog';
 import type { CreatePatientInput } from '../shared/schemas/patient';
 import type { CreateVisitInput } from '../shared/schemas/visit';
+import type { AddVisitProcedureInput } from '../shared/schemas/visitProcedure';
 
 export interface IpcError {
   code: string;
@@ -39,6 +40,36 @@ export interface VisitRow {
   total_gross_amount: number;
   patient_share_amount: number;
   insurer_share_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitWithPatientRow extends VisitRow {
+  patient_name: string;
+  patient_file_number: string;
+}
+
+export interface ProcedureRow {
+  id: number;
+  name: string;
+  category: 'radiology' | 'lab' | 'ambulance';
+  current_price: number;
+  is_active: 0 | 1;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitProcedureRow {
+  id: number;
+  visit_id: number;
+  procedure_id: number;
+  procedure_name_snapshot: string;
+  procedure_category_snapshot: 'radiology' | 'lab' | 'ambulance';
+  unit_price_snapshot: number;
+  quantity: number;
+  row_total: number;
+  procedure_date: string;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -84,6 +115,15 @@ declare global {
       };
       visits: {
         create: (input: CreateVisitInput) => Promise<IpcResponse<VisitRow>>;
+        get: (id: number) => Promise<IpcResponse<VisitWithPatientRow>>;
+      };
+      procedures: {
+        list: () => Promise<IpcResponse<ProcedureRow[]>>;
+      };
+      visitProcedures: {
+        add: (input: AddVisitProcedureInput) => Promise<IpcResponse<VisitProcedureRow>>;
+        listByVisit: (visitId: number) => Promise<IpcResponse<VisitProcedureRow[]>>;
+        delete: (id: number) => Promise<IpcResponse<unknown>>;
       };
     };
   }
@@ -128,4 +168,24 @@ export async function toggleMedicalEntity(id: number) {
 
 export async function createVisit(input: CreateVisitInput): Promise<VisitRow> {
   return unwrap(await window.api.visits.create(input));
+}
+
+export async function getVisit(id: number): Promise<VisitWithPatientRow> {
+  return unwrap(await window.api.visits.get(id));
+}
+
+export async function listProcedures(): Promise<ProcedureRow[]> {
+  return unwrap(await window.api.procedures.list());
+}
+
+export async function addVisitProcedure(input: AddVisitProcedureInput): Promise<VisitProcedureRow> {
+  return unwrap(await window.api.visitProcedures.add(input));
+}
+
+export async function listVisitProcedures(visitId: number): Promise<VisitProcedureRow[]> {
+  return unwrap(await window.api.visitProcedures.listByVisit(visitId));
+}
+
+export async function deleteVisitProcedure(id: number) {
+  return unwrap(await window.api.visitProcedures.delete(id));
 }

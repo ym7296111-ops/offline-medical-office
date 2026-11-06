@@ -86,3 +86,15 @@ export function createVisit(input: CreateVisitInput) {
 
   return runInTransaction();
 }
+
+export function getVisit(id: number) {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT v.*, p.full_name AS patient_name, p.file_number AS patient_file_number
+         FROM visits v
+         JOIN patients p ON p.id = v.patient_id
+        WHERE v.id = ?`
+    )
+    .get(id);
+}

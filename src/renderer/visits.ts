@@ -22,6 +22,8 @@ const messageEl = document.getElementById('message') as HTMLParagraphElement;
 const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 const successBox = document.getElementById('successBox') as HTMLDivElement;
 const caseNumberEl = document.getElementById('caseNumber') as HTMLSpanElement;
+const visitIdValueEl = document.getElementById('visitIdValue') as HTMLSpanElement;
+const manageProceduresLink = document.getElementById('manageProceduresLink') as HTMLAnchorElement;
 
 function setMessage(text: string, kind: 'ok' | 'error' | 'idle'): void {
   messageEl.textContent = text;
@@ -174,6 +176,8 @@ form.addEventListener('submit', async (e) => {
 
     setMessage('تم فتح الإقامة بنجاح!', 'ok');
     caseNumberEl.textContent = visit.case_number;
+    visitIdValueEl.textContent = String(visit.id);
+    manageProceduresLink.href = `visit-details.html?id=${visit.id}`;
     successBox.classList.remove('hidden');
     notesInput.value = '';
   } catch (error: any) {
