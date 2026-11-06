@@ -41,4 +41,19 @@ export function registerVisitHandlers() {
       };
     }
   });
+
+  ipcMain.handle('visits:get', (_event, id) => {
+    try {
+      const data = visitRepo.getVisit(Number(id));
+      if (!data) {
+        return { success: false, error: { code: 'NOT_FOUND', message: 'الإقامة غير موجودة' } };
+      }
+      return { success: true, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'فشل في جلب البيانات' }
+      };
+    }
+  });
 }
