@@ -18,7 +18,9 @@ interface ProcedureRow {
 /**
  * Recomputes `visits` totals from its line items.
  *
- * `total_gross_amount` = sum of visit_procedures.row_total (+ prescriptions later, C8).
+ * `total_gross_amount` = sum of visit_procedures.row_total + sum of prescription_items.row_total
+ *                        (D-005: the treatment item is one line on the invoice, and its own
+ *                        total is the sum of the drugs inside it).
  * `patient_share_amount` = gross × patient_copay_percentage / 100 (WF-010 step 4).
  * `insurer_share_amount` = gross − patient_share.
  *
@@ -33,8 +35,16 @@ export function recalculateVisitTotals(visitId: number): void {
   if (!visit) throw new Error(`Visit ${visitId} not found`);
 
   const sum = db
-    .prepare('SELECT COALESCE(SUM(row_total), 0) AS gross FROM visit_procedures WHERE visit_id = ?')
-    .get(visitId) as { gross: number };
+    .prepare(
+      `SELECT COALESCE((SELECT SUM(row_total) FROM visit_procedures WHERE visit_id = @visit_id), 0)
+            + COALESCE((
+                SELECT SUM(pi.row_total)
+                  FROM prescription_items pi
+                  JOIN prescriptions pr ON pr.id = pi.prescription_id
+                 WHERE pr.visit_id = @visit_id
+              ), 0) AS gross`
+    )
+    .get({ visit_id: visitId }) as { gross: number };
 
   const gross = sum.gross;
   // Integer cents throughout — floor the patient's share so rounding never overcharges.

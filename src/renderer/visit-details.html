@@ -62,6 +62,16 @@
     #reportLink { color: #2b6cb0; font-weight: 600; text-decoration: none; }
     #reportLink:hover { text-decoration: underline; }
     #dischargeMessage { font-size: 0.9rem; }
+    .rx { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .rx-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .rx-head h3 { font-size: 1rem; margin: 0; }
+    .rx-head .rx-total { margin-inline-start: auto; font-weight: 700; color: #2b6cb0; }
+    .rx-head .rx-meta { font-size: 0.85rem; color: #666; }
+    .rx table { margin-bottom: 0; }
+    .rx-note { font-size: 0.85rem; color: #666; margin: 0.5rem 0 0; }
+    #rxItemForm { margin-top: 1rem; }
+    #rxTotalHint { font-weight: 700; color: #2b6cb0; }
+    select#rxPrescription { min-width: 220px; }
   </style>
 </head>
 <body>
@@ -147,6 +157,54 @@
         <div class="item"><span class="label">حصة المريض</span><span class="value" id="patientShare">0</span></div>
         <div class="item"><span class="label">حصة التأمين</span><span class="value" id="insurerShare">0</span></div>
       </div>
+    </div>
+
+    <div id="prescriptionSection">
+      <h2>العلاج (الروشتة)</h2>
+
+      <div class="rx-actions">
+        <button type="button" id="btnNewPrescription">+ روشتة جديدة</button>
+        <span id="rxMessage" class="rx-note"></span>
+      </div>
+
+      <div id="prescriptionList"></div>
+      <p class="empty hidden" id="rxEmptyState">لا توجد روشتات مسجلة بعد.</p>
+
+      <form id="rxItemForm">
+        <div class="row">
+          <div class="field">
+            <label for="rxPrescription">الروشتة</label>
+            <select id="rxPrescription" required>
+              <option value="">— اختر الروشتة —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="rxDrug">الدواء</label>
+            <select id="rxDrug" required>
+              <option value="">— اختر الدواء —</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="rxQuantity">الكمية</label>
+            <input type="number" id="rxQuantity" min="1" step="1" value="1" required />
+          </div>
+          <div class="field">
+            <label for="rxUnitPrice">سعر الوحدة (قرش)</label>
+            <input type="number" id="rxUnitPrice" min="0" step="1" required />
+          </div>
+          <div class="field">
+            <label for="rxNotes">الجرعة / التعليمات (اختياري)</label>
+            <input type="text" id="rxNotes" />
+          </div>
+        </div>
+
+        <button type="submit" id="rxSubmitBtn">إضافة الدواء للروشتة</button>
+        <span class="rx-note">إجمالي الروشتة المختارة: <span id="rxTotalHint">0</span></span>
+        <p id="rxFormMessage" class="rx-note"></p>
+      </form>
     </div>
   </div>
   <script type="module" src="./visit-details.ts"></script>

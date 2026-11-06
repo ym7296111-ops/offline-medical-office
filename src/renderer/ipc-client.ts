@@ -4,6 +4,7 @@ import type { CreateVisitInput } from '../shared/schemas/visit';
 import type { AddVisitProcedureInput } from '../shared/schemas/visitProcedure';
 import type { CreateProcedureInput } from '../shared/schemas/procedure';
 import type { CreateDrugInput } from '../shared/schemas/drug';
+import type { AddPrescriptionItemInput, CreatePrescriptionInput } from '../shared/schemas/prescription';
 
 export interface IpcError {
   code: string;
@@ -85,6 +86,40 @@ export interface DrugRow {
   updated_at: string;
 }
 
+export interface PrescriptionItemRow {
+  id: number;
+  prescription_id: number;
+  drug_id: number;
+  drug_name_snapshot: string;
+  unit_price_snapshot: number;
+  quantity: number;
+  row_total: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrescriptionRow {
+  id: number;
+  visit_id: number;
+  prescription_date: string;
+  total_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrescriptionWithItemsRow extends PrescriptionRow {
+  items: PrescriptionItemRow[];
+}
+
+export interface DeletedPrescriptionItem {
+  id: number;
+  prescription_id: number;
+  visit_id: number;
+  deleted_prescription: boolean;
+}
+
 export interface VisitProcedureRow {
   id: number;
   visit_id: number;
@@ -156,6 +191,12 @@ declare global {
         listActive: () => Promise<IpcResponse<DrugRow[]>>;
         create: (input: CreateDrugInput) => Promise<IpcResponse<unknown>>;
         toggle: (id: number) => Promise<IpcResponse<unknown>>;
+      };
+      prescriptions: {
+        create: (input: CreatePrescriptionInput) => Promise<IpcResponse<PrescriptionRow>>;
+        addItem: (input: AddPrescriptionItemInput) => Promise<IpcResponse<PrescriptionItemRow>>;
+        deleteItem: (itemId: number) => Promise<IpcResponse<DeletedPrescriptionItem>>;
+        listByVisit: (visitId: number) => Promise<IpcResponse<PrescriptionWithItemsRow[]>>;
       };
       visitProcedures: {
         add: (input: AddVisitProcedureInput) => Promise<IpcResponse<VisitProcedureRow>>;
@@ -268,4 +309,26 @@ export async function createDrug(input: CreateDrugInput) {
 
 export async function toggleDrug(id: number) {
   return unwrap(await window.api.drugs.toggle(id));
+}
+
+export async function createPrescription(input: CreatePrescriptionInput): Promise<PrescriptionRow> {
+  return unwrap(await window.api.prescriptions.create(input));
+}
+
+export async function addPrescriptionItem(
+  input: AddPrescriptionItemInput
+): Promise<PrescriptionItemRow> {
+  return unwrap(await window.api.prescriptions.addItem(input));
+}
+
+export async function deletePrescriptionItem(
+  itemId: number
+): Promise<DeletedPrescriptionItem> {
+  return unwrap(await window.api.prescriptions.deleteItem(itemId));
+}
+
+export async function listPrescriptionsByVisit(
+  visitId: number
+): Promise<PrescriptionWithItemsRow[]> {
+  return unwrap(await window.api.prescriptions.listByVisit(visitId));
 }
