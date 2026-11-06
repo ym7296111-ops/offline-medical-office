@@ -8,6 +8,9 @@
     body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #222; }
     .container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
     h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
+    nav { margin-bottom: 1.5rem; }
+    nav a { color: #2b6cb0; text-decoration: none; font-weight: 600; }
+    nav a:hover { text-decoration: underline; }
     form { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
     input[type="text"] {
       padding: 0.5rem 0.75rem;
@@ -36,6 +39,7 @@
 <body>
   <div class="container">
     <h1>إدارة المرضى</h1>
+    <nav><a href="catalogs.html">إدارة الكتالوجات</a></nav>
     
     <form id="patientForm">
       <input type="text" id="file_number" placeholder="رقم الملف" required />
