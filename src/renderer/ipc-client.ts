@@ -65,6 +65,7 @@ export interface ActiveVisitRow {
 export interface VisitReport {
   visit: VisitWithPatientRow;
   procedures: VisitProcedureRow[];
+  prescriptions: PrescriptionWithItemsRow[];
 }
 
 export interface ProcedureRow {

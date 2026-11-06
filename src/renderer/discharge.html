@@ -46,6 +46,18 @@
       padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem;
     }
 
+    .totals.breakdown { background: #f7fafc; }
+    .totals.breakdown .value { font-size: 1rem; }
+    .totals.breakdown .value.match { color: #2f855a; }
+    .totals.breakdown .value.mismatch { color: #c53030; }
+    .rx { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1rem; }
+    .rx-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+    .rx-head h3 { font-size: 1rem; margin: 0; }
+    .rx-head .rx-meta { font-size: 0.85rem; color: #666; }
+    .rx-head .rx-total { margin-inline-start: auto; font-weight: 700; color: #2b6cb0; }
+    .rx table { margin-bottom: 0; }
+    .rx tfoot td { font-weight: 700; background: #f7fafc; }
+    .rx-note { font-size: 0.9rem; color: #666; }
     #auditSection { margin-top: 2rem; }
     #auditSection table th, #auditSection table td { font-size: 0.9rem; }
     .audit-action-insert { color: #2f855a; font-weight: 600; }
@@ -100,10 +112,20 @@
     </table>
     <p class="empty hidden" id="emptyState">لا توجد إجراءات مسجلة في هذه الإقامة.</p>
 
+    <h2>الأدوية (الروشتات)</h2>
+    <div id="prescriptionList"></div>
+    <p class="empty hidden" id="rxEmptyState">لا توجد روشتات مسجلة في هذه الإقامة.</p>
+
     <div class="totals">
       <div class="item"><span class="label">الإجمالي</span><span class="value gross" id="totalGross">0</span></div>
       <div class="item"><span class="label">حصة المريض</span><span class="value" id="patientShare">0</span></div>
       <div class="item"><span class="label">حصة التأمين</span><span class="value" id="insurerShare">0</span></div>
+    </div>
+
+    <div class="totals breakdown">
+      <div class="item"><span class="label">إجمالي الإجراءات</span><span class="value" id="proceduresSubtotal">0</span></div>
+      <div class="item"><span class="label">إجمالي الأدوية</span><span class="value" id="prescriptionsSubtotal">0</span></div>
+      <div class="item"><span class="label">مجموع البنود</span><span class="value" id="breakdownTotal">0</span></div>
     </div>
 
     <div id="auditSection">
