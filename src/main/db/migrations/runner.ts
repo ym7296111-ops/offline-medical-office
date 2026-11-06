@@ -5,20 +5,30 @@ import { join } from 'path';
 /**
  * Resolves the directory that holds the `.sql` migration files.
  *
- * electron-vite compiles the main process into `out/main/`, and `.sql` assets are
- * not copied there, so a single hardcoded path breaks in the built app. We probe
- * the build output location first, then the source tree, and fail loudly instead
- * of silently applying zero migrations.
+ * electron-vite compiles the main process into `out/main/`, so `__dirname` is that
+ * folder in both dev and production builds. `viteStaticCopy` (see electron.vite.config.ts)
+ * copies `src/main/db/migrations/*.sql` to `out/main/db/migrations`, which makes the
+ * first candidate below the authoritative location in every environment.
+ *
+ * The remaining candidates are a last-resort safety net: `migrations/` covers a
+ * differently configured copy target, and the source tree only exists in an
+ * unpackaged checkout (it is absent from a packaged app). If none resolve we throw
+ * instead of silently applying zero migrations.
  */
 function resolveMigrationsDir(): string {
   const candidates = [
+    // out/main/db/migrations — the viteStaticCopy destination (dev and production).
     join(__dirname, 'db', 'migrations'),
     join(__dirname, 'migrations'),
+    // Unpackaged runs only: out/main/../../src/main/db/migrations.
     join(__dirname, '..', '..', 'src', 'main', 'db', 'migrations')
   ];
 
   for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) {
+      console.log(`[db] migrations dir: ${candidate}`);
+      return candidate;
+    }
   }
 
   throw new Error(`[db] migrations directory not found. Tried: ${candidates.join(', ')}`);
