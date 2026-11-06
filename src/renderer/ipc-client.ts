@@ -2,6 +2,7 @@ import type { CreateInsuranceCompanyInput, CreateMedicalEntityInput } from '../s
 import type { CreatePatientInput } from '../shared/schemas/patient';
 import type { CreateVisitInput } from '../shared/schemas/visit';
 import type { AddVisitProcedureInput } from '../shared/schemas/visitProcedure';
+import type { CreateProcedureInput } from '../shared/schemas/procedure';
 
 export interface IpcError {
   code: string;
@@ -119,6 +120,9 @@ declare global {
       };
       procedures: {
         list: () => Promise<IpcResponse<ProcedureRow[]>>;
+        listAll: () => Promise<IpcResponse<ProcedureRow[]>>;
+        create: (input: CreateProcedureInput) => Promise<IpcResponse<unknown>>;
+        toggle: (id: number) => Promise<IpcResponse<unknown>>;
       };
       visitProcedures: {
         add: (input: AddVisitProcedureInput) => Promise<IpcResponse<VisitProcedureRow>>;
@@ -188,4 +192,16 @@ export async function listVisitProcedures(visitId: number): Promise<VisitProcedu
 
 export async function deleteVisitProcedure(id: number) {
   return unwrap(await window.api.visitProcedures.delete(id));
+}
+
+export async function listAllProcedures(): Promise<ProcedureRow[]> {
+  return unwrap(await window.api.procedures.listAll());
+}
+
+export async function createProcedure(input: CreateProcedureInput) {
+  return unwrap(await window.api.procedures.create(input));
+}
+
+export async function toggleProcedure(id: number) {
+  return unwrap(await window.api.procedures.toggle(id));
 }

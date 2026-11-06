@@ -1,7 +1,6 @@
 import { ipcMain } from 'electron';
 import { AddVisitProcedureInput } from '../../../shared/schemas/visitProcedure';
 import * as visitProcedureRepo from '../../repositories/visitProcedures.repo';
-import * as procedureRepo from '../../repositories/procedures.repo';
 import { ZodError } from 'zod';
 
 /** Turns a repo-thrown domain error (with a `code` property) into an IPC response. */
@@ -56,15 +55,6 @@ export function registerVisitProcedureHandlers() {
       return { success: true, data };
     } catch (error) {
       return domainError(error);
-    }
-  });
-
-  ipcMain.handle('procedures:list', () => {
-    try {
-      const data = procedureRepo.listProcedures();
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: { code: 'INTERNAL_ERROR', message: 'فشل في جلب البيانات' } };
     }
   });
 }
