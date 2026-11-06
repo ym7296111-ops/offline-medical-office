@@ -1,4 +1,5 @@
 import {
+  createPatient,
   createVisit,
   listInsuranceCompanies,
   listMedicalEntities,
@@ -24,6 +25,16 @@ const successBox = document.getElementById('successBox') as HTMLDivElement;
 const caseNumberEl = document.getElementById('caseNumber') as HTMLSpanElement;
 const visitIdValueEl = document.getElementById('visitIdValue') as HTMLSpanElement;
 const manageProceduresLink = document.getElementById('manageProceduresLink') as HTMLAnchorElement;
+
+// Quick-add patient controls
+const btnQuickAddPatient = document.getElementById('btnQuickAddPatient') as HTMLButtonElement;
+const quickAddPatientForm = document.getElementById('quickAddPatientForm') as HTMLDivElement;
+const btnSaveQuickPatient = document.getElementById('btnSaveQuickPatient') as HTMLButtonElement;
+const btnCancelQuickPatient = document.getElementById('btnCancelQuickPatient') as HTMLButtonElement;
+const newPatientFileInput = document.getElementById('new_patient_file') as HTMLInputElement;
+const newPatientNameInput = document.getElementById('new_patient_name') as HTMLInputElement;
+const newPatientPhoneInput = document.getElementById('new_patient_phone') as HTMLInputElement;
+const quickPatientMessage = document.getElementById('quickPatientMessage') as HTMLParagraphElement;
 
 function setMessage(text: string, kind: 'ok' | 'error' | 'idle'): void {
   messageEl.textContent = text;
@@ -130,6 +141,74 @@ async function loadEntities(): Promise<void> {
   }
 }
 
+/** Shape returned by the patients:create IPC handler (better-sqlite3 RunResult). */
+interface CreatePatientResult {
+  changes: number;
+  lastInsertRowid: number | bigint;
+}
+
+function setQuickPatientMessage(text: string, kind: 'ok' | 'error' | 'idle'): void {
+  quickPatientMessage.textContent = text;
+  quickPatientMessage.style.color = kind === 'error' ? 'red' : kind === 'ok' ? 'green' : '#222';
+}
+
+function clearQuickAddForm(): void {
+  newPatientFileInput.value = '';
+  newPatientNameInput.value = '';
+  newPatientPhoneInput.value = '';
+  setQuickPatientMessage('', 'idle');
+}
+
+function showQuickAddForm(show: boolean): void {
+  quickAddPatientForm.style.display = show ? 'flex' : 'none';
+  if (show) {
+    newPatientFileInput.focus();
+  } else {
+    clearQuickAddForm();
+  }
+}
+
+async function saveQuickPatient(): Promise<void> {
+  const fileNumber = newPatientFileInput.value.trim();
+  const fullName = newPatientNameInput.value.trim();
+  const phone = newPatientPhoneInput.value.trim();
+
+  if (!fileNumber) {
+    setQuickPatientMessage('رقم الملف مطلوب', 'error');
+    newPatientFileInput.focus();
+    return;
+  }
+  if (!fullName) {
+    setQuickPatientMessage('الاسم مطلوب', 'error');
+    newPatientNameInput.focus();
+    return;
+  }
+
+  btnSaveQuickPatient.disabled = true;
+  setQuickPatientMessage('جاري الحفظ...', 'idle');
+
+  try {
+    const result = (await createPatient({
+      file_number: fileNumber,
+      full_name: fullName,
+      emergency_contact_phone: phone || null
+    })) as CreatePatientResult;
+
+    const newPatientId = Number(result.lastInsertRowid);
+
+    showQuickAddForm(false);
+    await loadPatients();
+    patientSelect.value = String(newPatientId);
+
+    // The quick-add panel is hidden by now, so report success in the main message area.
+    setMessage(`تمت إضافة المريض «${fullName}» واختياره.`, 'ok');
+  } catch (error: any) {
+    setQuickPatientMessage(error.message, 'error');
+  } finally {
+    btnSaveQuickPatient.disabled = false;
+  }
+}
+
 form.addEventListener('change', (event) => {
   const target = event.target as HTMLElement;
   if (target instanceof HTMLInputElement && target.name === 'contract_type') {
@@ -185,6 +264,31 @@ form.addEventListener('submit', async (e) => {
   } finally {
     submitBtn.disabled = false;
   }
+});
+
+btnQuickAddPatient.addEventListener('click', () => {
+  const isHidden = quickAddPatientForm.style.display === 'none';
+  showQuickAddForm(isHidden);
+  if (isHidden) setMessage('', 'idle');
+});
+
+btnCancelQuickPatient.addEventListener('click', () => {
+  showQuickAddForm(false);
+});
+
+btnSaveQuickPatient.addEventListener('click', () => {
+  void saveQuickPatient();
+});
+
+// The quick-add inputs live inside the visit form, so Enter would submit the visit.
+// Intercept it there and save the patient instead.
+[newPatientFileInput, newPatientNameInput, newPatientPhoneInput].forEach((input) => {
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void saveQuickPatient();
+    }
+  });
 });
 
 // Initial state and data load

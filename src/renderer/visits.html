@@ -37,6 +37,16 @@
     }
     button:hover { background: #245a94; }
     button:disabled { background: #a0aec0; border-color: #a0aec0; cursor: not-allowed; }
+    .patient-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .patient-row select { flex: 1; min-width: 220px; }
+    .patient-row button { padding: 0.5rem 1rem; white-space: nowrap; }
+    #quickAddPatientForm { background: #fafafa; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    #quickAddPatientForm h4 { margin: 0 0 0.25rem; width: 100%; font-size: 1rem; }
+    #quickAddPatientForm input[type="text"] { min-width: 160px; }
+    #quickAddPatientForm button { padding: 0.5rem 1rem; }
+    #btnCancelQuickPatient { background: #fff; color: #2b6cb0; }
+    #btnCancelQuickPatient:hover { background: #edf2f7; }
+    #quickPatientMessage { width: 100%; margin: 0.25rem 0 0; min-height: 1.2rem; }
     #message { min-height: 1.5rem; margin: 0.75rem 0 0; }
     .hint { font-size: 0.85rem; color: #666; }
     .hidden { display: none; }
@@ -58,9 +68,22 @@
     <form id="visitForm">
       <div class="field">
         <label for="patient_id">المريض</label>
-        <select id="patient_id" required>
-          <option value="">— اختر المريض —</option>
-        </select>
+        <div class="patient-row">
+          <select id="patient_id" required>
+            <option value="">— اختر المريض —</option>
+          </select>
+          <button type="button" id="btnQuickAddPatient">+ مريض جديد</button>
+        </div>
+      </div>
+
+      <div id="quickAddPatientForm" style="display: none; border: 1px solid #ccc; padding: 10px; margin-top: 10px;">
+        <h4>إضافة مريض جديد</h4>
+        <input type="text" id="new_patient_file" placeholder="رقم الملف" />
+        <input type="text" id="new_patient_name" placeholder="الاسم الكامل" />
+        <input type="text" id="new_patient_phone" placeholder="هاتف الطوارئ (اختياري)" />
+        <button type="button" id="btnSaveQuickPatient">حفظ المريض</button>
+        <button type="button" id="btnCancelQuickPatient">إلغاء</button>
+        <p id="quickPatientMessage"></p>
       </div>
 
       <div class="field">
