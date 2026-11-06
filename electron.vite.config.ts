@@ -40,7 +40,8 @@ export default defineConfig({
           'visits-list': resolve(__dirname, 'src/renderer/visits-list.html'),
           'visit-details': resolve(__dirname, 'src/renderer/visit-details.html'),
           procedures: resolve(__dirname, 'src/renderer/procedures.html'),
-          discharge: resolve(__dirname, 'src/renderer/discharge.html')
+          discharge: resolve(__dirname, 'src/renderer/discharge.html'),
+          drugs: resolve(__dirname, 'src/renderer/drugs.html')
         }
       }
     }

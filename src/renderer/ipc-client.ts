@@ -3,6 +3,7 @@ import type { CreatePatientInput } from '../shared/schemas/patient';
 import type { CreateVisitInput } from '../shared/schemas/visit';
 import type { AddVisitProcedureInput } from '../shared/schemas/visitProcedure';
 import type { CreateProcedureInput } from '../shared/schemas/procedure';
+import type { CreateDrugInput } from '../shared/schemas/drug';
 
 export interface IpcError {
   code: string;
@@ -75,6 +76,15 @@ export interface ProcedureRow {
   updated_at: string;
 }
 
+export interface DrugRow {
+  id: number;
+  name: string;
+  current_price: number;
+  is_active: 0 | 1;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface VisitProcedureRow {
   id: number;
   visit_id: number;
@@ -139,6 +149,12 @@ declare global {
         list: () => Promise<IpcResponse<ProcedureRow[]>>;
         listAll: () => Promise<IpcResponse<ProcedureRow[]>>;
         create: (input: CreateProcedureInput) => Promise<IpcResponse<unknown>>;
+        toggle: (id: number) => Promise<IpcResponse<unknown>>;
+      };
+      drugs: {
+        listAll: () => Promise<IpcResponse<DrugRow[]>>;
+        listActive: () => Promise<IpcResponse<DrugRow[]>>;
+        create: (input: CreateDrugInput) => Promise<IpcResponse<unknown>>;
         toggle: (id: number) => Promise<IpcResponse<unknown>>;
       };
       visitProcedures: {
@@ -236,4 +252,20 @@ export async function getVisitReport(visitId: number): Promise<VisitReport> {
 
 export async function listActiveVisits(searchTerm?: string): Promise<ActiveVisitRow[]> {
   return unwrap(await window.api.visits.listActive(searchTerm));
+}
+
+export async function listAllDrugs(): Promise<DrugRow[]> {
+  return unwrap(await window.api.drugs.listAll());
+}
+
+export async function listActiveDrugs(): Promise<DrugRow[]> {
+  return unwrap(await window.api.drugs.listActive());
+}
+
+export async function createDrug(input: CreateDrugInput) {
+  return unwrap(await window.api.drugs.create(input));
+}
+
+export async function toggleDrug(id: number) {
+  return unwrap(await window.api.drugs.toggle(id));
 }
