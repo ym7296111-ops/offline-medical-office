@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>Offline Medical Office — دخول مريض</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #222; }
+    .container { max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    nav { margin-bottom: 1.5rem; display: flex; gap: 1rem; }
+    nav a { color: #2b6cb0; text-decoration: none; font-weight: 600; }
+    nav a:hover { text-decoration: underline; }
+    form { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 1.25rem; }
+    .field { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+    .field > label { font-weight: 600; font-size: 0.95rem; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .row .field { flex: 1; min-width: 220px; }
+    input[type="text"], input[type="number"], input[type="date"], select {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    input:disabled, select:disabled { background: #f0f0f0; color: #777; }
+    .radios { display: flex; gap: 1.5rem; align-items: center; }
+    .radios label { font-weight: 400; display: flex; align-items: center; gap: 0.35rem; }
+    button {
+      padding: 0.6rem 1.5rem;
+      border: 1px solid #2b6cb0;
+      background: #2b6cb0;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: #245a94; }
+    button:disabled { background: #a0aec0; border-color: #a0aec0; cursor: not-allowed; }
+    #message { min-height: 1.5rem; margin: 0.75rem 0 0; }
+    .hint { font-size: 0.85rem; color: #666; }
+    .hidden { display: none; }
+    .success-box {
+      margin-top: 1rem; padding: 1rem; border: 1px solid #2f855a;
+      background: #f0fff4; border-radius: 6px;
+    }
+    .success-box strong { color: #2f855a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>دخول مريض جديد (إقامة)</h1>
+    <nav>
+      <a href="index.html">← إدارة المرضى</a>
+      <a href="catalogs.html">إدارة الكتالوجات</a>
+    </nav>
+
+    <form id="visitForm">
+      <div class="field">
+        <label for="patient_id">المريض</label>
+        <select id="patient_id" required>
+          <option value="">— اختر المريض —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>نوع العقد</label>
+        <div class="radios">
+          <label><input type="radio" name="contract_type" value="private" checked /> خاص</label>
+          <label><input type="radio" name="contract_type" value="insurance" /> تأمين</label>
+        </div>
+      </div>
+
+      <div class="field hidden" id="insuranceField">
+        <label for="insurance_company_id">شركة التأمين</label>
+        <select id="insurance_company_id">
+          <option value="">— اختر الشركة —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="patient_copay_percentage">نسبة تحمّل المريض (%)</label>
+        <input type="number" id="patient_copay_percentage" min="0" max="100" step="1" value="100" disabled />
+        <span class="hint" id="copayHint">العقد الخاص: يتحمل المريض 100% دائمًا.</span>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="admission_status">حالة الدخول</label>
+          <select id="admission_status">
+            <option value="stable">مستقرة</option>
+            <option value="critical">حرجة</option>
+            <option value="emergency">طوارئ</option>
+            <option value="under_observation">تحت الملاحظة</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="admission_date">تاريخ الدخول</label>
+          <input type="date" id="admission_date" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="referred_entity_id">الجهة المحوّلة (اختياري)</label>
+        <select id="referred_entity_id">
+          <option value="">— بدون —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="notes">ملاحظات (اختياري)</label>
+        <input type="text" id="notes" />
+      </div>
+
+      <button type="submit" id="submitBtn">فتح الإقامة</button>
+      <p id="message"></p>
+    </form>
+
+    <div class="success-box hidden" id="successBox">
+      <strong>تم فتح الإقامة بنجاح.</strong>
+      <div>رقم الحالة: <span id="caseNumber"></span></div>
+    </div>
+  </div>
+  <script type="module" src="./visits.ts"></script>
+</body>
+</html>

@@ -14,5 +14,8 @@ contextBridge.exposeInMainWorld('api', {
     create: (input: any) => ipcRenderer.invoke('entities:create', input),
     list: () => ipcRenderer.invoke('entities:list'),
     toggle: (id: number) => ipcRenderer.invoke('entities:toggle', id),
+  },
+  visits: {
+    create: (input: any) => ipcRenderer.invoke('visits:create', input),
   }
 });

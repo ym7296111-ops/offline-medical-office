@@ -1,5 +1,6 @@
 import type { CreateInsuranceCompanyInput, CreateMedicalEntityInput } from '../shared/schemas/catalog';
 import type { CreatePatientInput } from '../shared/schemas/patient';
+import type { CreateVisitInput } from '../shared/schemas/visit';
 
 export interface IpcError {
   code: string;
@@ -18,6 +19,27 @@ export interface PatientRow {
   companion_name: string | null;
   relationship: string | null;
   is_active: 0 | 1;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VisitRow {
+  id: number;
+  patient_id: number;
+  case_number: string;
+  admission_date: string;
+  discharge_date: string | null;
+  admission_status: 'stable' | 'critical' | 'emergency' | 'under_observation';
+  contract_type: 'private' | 'insurance';
+  insurance_company_id: number | null;
+  patient_copay_percentage: number;
+  referred_entity_id: number | null;
+  referred_entity_name_snapshot: string | null;
+  total_days: number | null;
+  total_gross_amount: number;
+  patient_share_amount: number;
+  insurer_share_amount: number;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +82,9 @@ declare global {
         list: () => Promise<IpcResponse<MedicalEntityRow[]>>;
         toggle: (id: number) => Promise<IpcResponse<unknown>>;
       };
+      visits: {
+        create: (input: CreateVisitInput) => Promise<IpcResponse<VisitRow>>;
+      };
     };
   }
 }
@@ -99,4 +124,8 @@ export async function listMedicalEntities(): Promise<MedicalEntityRow[]> {
 
 export async function toggleMedicalEntity(id: number) {
   return unwrap(await window.api.entities.toggle(id));
+}
+
+export async function createVisit(input: CreateVisitInput): Promise<VisitRow> {
+  return unwrap(await window.api.visits.create(input));
 }
