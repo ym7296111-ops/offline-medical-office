@@ -72,6 +72,22 @@
     #rxItemForm { margin-top: 1rem; }
     #rxTotalHint { font-weight: 700; color: #2b6cb0; }
     select#rxPrescription { min-width: 220px; }
+    .correction-bar {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      background: #fffaf0; border: 1px solid #dd6b20; border-radius: 6px;
+      padding: 0.9rem 1.25rem; margin-top: 1rem;
+    }
+    .correction-bar .label-text { font-weight: 600; color: #7b341e; }
+    .correction-bar input[type="text"] { flex: 1; min-width: 240px; }
+    .correction-badge {
+      background: #dd6b20; color: #fff; border-radius: 999px;
+      padding: 0.15rem 0.6rem; font-size: 0.8rem; font-weight: 600;
+    }
+    #auditSection { margin-top: 2rem; }
+    #auditSection table td, #auditSection table th { font-size: 0.9rem; }
+    .audit-action-insert { color: #2f855a; font-weight: 600; }
+    .audit-action-update { color: #b7791f; font-weight: 600; }
+    .audit-action-delete { color: #c53030; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -92,6 +108,14 @@
       <div class="item"><span class="label">الحالة</span><span class="value" id="visitStatus">—</span></div>
     </div>
     <p id="loadMessage"></p>
+
+    <div id="correctionBar" class="correction-bar hidden">
+      <span class="correction-badge">تصحيح إداري</span>
+      <span class="label-text">هذه الإقامة مغلقة — أي تعديل يحتاج سببًا ويُسجَّل في سجل التصحيحات.</span>
+      <label for="correctionReason">سبب التصحيح (إلزامي)</label>
+      <input type="text" id="correctionReason" placeholder="مثال: إجراء لم يُسجَّل قبل الخروج" />
+      <span id="correctionMessage"></span>
+    </div>
 
     <div id="dischargeBar" class="discharge-bar hidden">
       <button type="button" id="btnDischarge" class="danger-solid">تسجيل خروج</button>
@@ -205,6 +229,24 @@
         <span class="rx-note">إجمالي الروشتة المختارة: <span id="rxTotalHint">0</span></span>
         <p id="rxFormMessage" class="rx-note"></p>
       </form>
+    </div>
+
+    <div id="auditSection">
+      <h2>سجل التصحيحات الإدارية</h2>
+      <table id="auditTable">
+        <thead>
+          <tr>
+            <th>التاريخ</th>
+            <th>العملية</th>
+            <th>النوع</th>
+            <th>السبب</th>
+            <th>بواسطة</th>
+            <th>التفاصيل</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty hidden" id="auditEmptyState">لا توجد تصحيحات إدارية على هذه الإقامة.</p>
     </div>
   </div>
   <script type="module" src="./visit-details.ts"></script>

@@ -11,6 +11,12 @@ function domainError(error: unknown) {
   if (code === 'VISIT_CLOSED') {
     return { success: false, error: { code: 'CONFLICT', message: 'الإقامة مغلقة' } };
   }
+  if (code === 'CORRECTION_REASON_REQUIRED') {
+    return {
+      success: false,
+      error: { code: 'CONFLICT', message: 'يجب تقديم سبب التصحيح للإقامة المغلقة' }
+    };
+  }
   if (code === 'NOT_FOUND') {
     return { success: false, error: { code: 'NOT_FOUND', message: message ?? 'العنصر غير موجود' } };
   }
@@ -49,9 +55,12 @@ export function registerVisitProcedureHandlers() {
     }
   });
 
-  ipcMain.handle('visit_procedures:delete', (_event, id) => {
+  ipcMain.handle('visit_procedures:delete', (_event, id, correctionReason) => {
     try {
-      const data = visitProcedureRepo.deleteProcedure(Number(id));
+      const data = visitProcedureRepo.deleteProcedure(
+        Number(id),
+        typeof correctionReason === 'string' ? correctionReason : null
+      );
       return { success: true, data };
     } catch (error) {
       return domainError(error);

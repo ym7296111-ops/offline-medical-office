@@ -120,6 +120,19 @@ export interface DeletedPrescriptionItem {
   deleted_prescription: boolean;
 }
 
+export interface AuditLogRow {
+  id: number;
+  visit_id: number;
+  entity_type: 'visit' | 'visit_procedure' | 'prescription' | 'prescription_item';
+  entity_id: number;
+  action_type: 'insert' | 'update' | 'delete';
+  reason: string;
+  performed_by: string;
+  performed_at: string;
+  details_json: string | null;
+  created_at: string;
+}
+
 export interface VisitProcedureRow {
   id: number;
   visit_id: number;
@@ -195,13 +208,19 @@ declare global {
       prescriptions: {
         create: (input: CreatePrescriptionInput) => Promise<IpcResponse<PrescriptionRow>>;
         addItem: (input: AddPrescriptionItemInput) => Promise<IpcResponse<PrescriptionItemRow>>;
-        deleteItem: (itemId: number) => Promise<IpcResponse<DeletedPrescriptionItem>>;
+        deleteItem: (
+          itemId: number,
+          correctionReason?: string
+        ) => Promise<IpcResponse<DeletedPrescriptionItem>>;
         listByVisit: (visitId: number) => Promise<IpcResponse<PrescriptionWithItemsRow[]>>;
       };
       visitProcedures: {
         add: (input: AddVisitProcedureInput) => Promise<IpcResponse<VisitProcedureRow>>;
         listByVisit: (visitId: number) => Promise<IpcResponse<VisitProcedureRow[]>>;
-        delete: (id: number) => Promise<IpcResponse<unknown>>;
+        delete: (id: number, correctionReason?: string) => Promise<IpcResponse<unknown>>;
+      };
+      audit: {
+        listByVisit: (visitId: number) => Promise<IpcResponse<AuditLogRow[]>>;
       };
     };
   }
@@ -264,8 +283,8 @@ export async function listVisitProcedures(visitId: number): Promise<VisitProcedu
   return unwrap(await window.api.visitProcedures.listByVisit(visitId));
 }
 
-export async function deleteVisitProcedure(id: number) {
-  return unwrap(await window.api.visitProcedures.delete(id));
+export async function deleteVisitProcedure(id: number, correctionReason?: string) {
+  return unwrap(await window.api.visitProcedures.delete(id, correctionReason));
 }
 
 export async function listAllProcedures(): Promise<ProcedureRow[]> {
@@ -322,13 +341,18 @@ export async function addPrescriptionItem(
 }
 
 export async function deletePrescriptionItem(
-  itemId: number
+  itemId: number,
+  correctionReason?: string
 ): Promise<DeletedPrescriptionItem> {
-  return unwrap(await window.api.prescriptions.deleteItem(itemId));
+  return unwrap(await window.api.prescriptions.deleteItem(itemId, correctionReason));
 }
 
 export async function listPrescriptionsByVisit(
   visitId: number
 ): Promise<PrescriptionWithItemsRow[]> {
   return unwrap(await window.api.prescriptions.listByVisit(visitId));
+}
+
+export async function listCorrectionsByVisit(visitId: number): Promise<AuditLogRow[]> {
+  return unwrap(await window.api.audit.listByVisit(visitId));
 }

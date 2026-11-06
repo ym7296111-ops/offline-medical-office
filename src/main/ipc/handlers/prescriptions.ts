@@ -19,6 +19,12 @@ function domainError(error: unknown) {
   if (code === 'VISIT_CLOSED') {
     return { success: false, error: { code: 'CONFLICT', message: 'الإقامة مغلقة' } };
   }
+  if (code === 'CORRECTION_REASON_REQUIRED') {
+    return {
+      success: false,
+      error: { code: 'CONFLICT', message: 'يجب تقديم سبب التصحيح للإقامة المغلقة' }
+    };
+  }
   if (code === 'NOT_FOUND') {
     return { success: false, error: { code: 'NOT_FOUND', message: message ?? 'العنصر غير موجود' } };
   }
@@ -54,13 +60,16 @@ export function registerPrescriptionHandlers() {
     }
   });
 
-  ipcMain.handle('prescriptions:deleteItem', (_event, itemId) => {
+  ipcMain.handle('prescriptions:deleteItem', (_event, itemId, correctionReason) => {
     try {
       const id = Number(itemId);
       if (!Number.isInteger(id) || id <= 0) {
         return { success: false, error: { code: 'VALIDATION_ERROR', message: 'رقم البند غير صالح' } };
       }
-      const result = prescriptionRepo.deletePrescriptionItem(id);
+      const result = prescriptionRepo.deletePrescriptionItem(
+        id,
+        typeof correctionReason === 'string' ? correctionReason : null
+      );
       return { success: true, data: result };
     } catch (error) {
       return domainError(error);

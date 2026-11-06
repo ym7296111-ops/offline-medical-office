@@ -46,6 +46,12 @@
       padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem;
     }
 
+    #auditSection { margin-top: 2rem; }
+    #auditSection table th, #auditSection table td { font-size: 0.9rem; }
+    .audit-action-insert { color: #2f855a; font-weight: 600; }
+    .audit-action-update { color: #b7791f; font-weight: 600; }
+    .audit-action-delete { color: #c53030; font-weight: 600; }
+
     @media print {
       body { background: #fff; }
       nav, .actions, #message, .no-print { display: none !important; }
@@ -98,6 +104,24 @@
       <div class="item"><span class="label">الإجمالي</span><span class="value gross" id="totalGross">0</span></div>
       <div class="item"><span class="label">حصة المريض</span><span class="value" id="patientShare">0</span></div>
       <div class="item"><span class="label">حصة التأمين</span><span class="value" id="insurerShare">0</span></div>
+    </div>
+
+    <div id="auditSection">
+      <h2>التصحيحات الإدارية بعد الخروج</h2>
+      <table id="auditTable">
+        <thead>
+          <tr>
+            <th>التاريخ</th>
+            <th>العملية</th>
+            <th>النوع</th>
+            <th>السبب</th>
+            <th>بواسطة</th>
+            <th>التفاصيل</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty hidden" id="auditEmptyState">لا توجد تصحيحات إدارية على هذه الإقامة.</p>
     </div>
 
     <div class="actions no-print">
