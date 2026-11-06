@@ -215,3 +215,48 @@ export function getVisitReport(visitId: number) {
 
   return { visit, procedures };
 }
+
+/**
+ * Active visits (WF-002 follow-up): every admission that has not been discharged yet.
+ *
+ * The search term is matched against the patient's name, the patient's file number and
+ * the case number. `searchTerm` is passed to SQLite as a *bound parameter* and only the
+ * surrounding wildcards are concatenated in SQL, so a term containing `%`, `_` or quotes
+ * can never break out of the comparison.
+ */
+export function listActiveVisits(searchTerm?: string) {
+  const db = getDb();
+
+  const term = typeof searchTerm === 'string' ? searchTerm.trim() : '';
+  const hasTerm = term.length > 0;
+
+  // The escape character is a backslash, so a search term may itself contain one;
+  // % and _ keep their user-typed wildcard meaning.
+  const where = [
+    'v.discharge_date IS NULL',
+    ...(hasTerm
+      ? [
+          `(
+             p.full_name LIKE ? ESCAPE '\\'
+             OR p.file_number LIKE ? ESCAPE '\\'
+             OR v.case_number LIKE ? ESCAPE '\\'
+           )`
+        ]
+      : [])
+  ].join(' AND ');
+
+  const sql = `
+    SELECT v.id            AS visit_id,
+           v.case_number   AS case_number,
+           v.admission_date AS admission_date,
+           v.admission_status AS admission_status,
+           p.full_name     AS patient_name,
+           p.file_number   AS file_number
+      FROM visits v
+      JOIN patients p ON p.id = v.patient_id
+     WHERE ${where}
+     ORDER BY v.admission_date DESC, v.id DESC`;
+
+  const params = hasTerm ? [`%${term}%`, `%${term}%`, `%${term}%`] : [];
+  return db.prepare(sql).all(...params);
+}

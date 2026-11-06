@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   visits: {
     create: (input: any) => ipcRenderer.invoke('visits:create', input),
     get: (id: number) => ipcRenderer.invoke('visits:get', id),
+    listActive: (searchTerm?: string) => ipcRenderer.invoke('visits:listActive', searchTerm),
     discharge: (visitId: number, dischargeDate: string) =>
       ipcRenderer.invoke('visits:discharge', visitId, dischargeDate),
     getReport: (visitId: number) => ipcRenderer.invoke('visits:getReport', visitId),

@@ -51,6 +51,15 @@ export interface VisitWithPatientRow extends VisitRow {
   patient_file_number: string;
 }
 
+export interface ActiveVisitRow {
+  visit_id: number;
+  case_number: string;
+  admission_date: string;
+  admission_status: 'stable' | 'critical' | 'emergency' | 'under_observation';
+  patient_name: string;
+  file_number: string;
+}
+
 export interface VisitReport {
   visit: VisitWithPatientRow;
   procedures: VisitProcedureRow[];
@@ -122,6 +131,7 @@ declare global {
       visits: {
         create: (input: CreateVisitInput) => Promise<IpcResponse<VisitRow>>;
         get: (id: number) => Promise<IpcResponse<VisitWithPatientRow>>;
+        listActive: (searchTerm?: string) => Promise<IpcResponse<ActiveVisitRow[]>>;
         discharge: (visitId: number, dischargeDate: string) => Promise<IpcResponse<VisitWithPatientRow>>;
         getReport: (visitId: number) => Promise<IpcResponse<VisitReport>>;
       };
@@ -222,4 +232,8 @@ export async function dischargeVisit(
 
 export async function getVisitReport(visitId: number): Promise<VisitReport> {
   return unwrap(await window.api.visits.getReport(visitId));
+}
+
+export async function listActiveVisits(searchTerm?: string): Promise<ActiveVisitRow[]> {
+  return unwrap(await window.api.visits.listActive(searchTerm));
 }

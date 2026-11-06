@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>Offline Medical Office — الإقامات النشطة</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #222; }
+    .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #666; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    nav { margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    nav a { color: #2b6cb0; text-decoration: none; font-weight: 600; }
+    nav a:hover { text-decoration: underline; }
+    .search-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    input[type="text"] {
+      padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px;
+      font-size: 1rem; font-family: inherit; min-width: 320px; flex: 1;
+    }
+    #countLabel { color: #666; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 0.55rem 0.7rem; text-align: right; font-size: 0.95rem; }
+    th { background: #edf2f7; font-weight: 600; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    td a { color: #2b6cb0; font-weight: 600; text-decoration: none; }
+    td a:hover { text-decoration: underline; }
+    #message { min-height: 1.5rem; margin: 0.5rem 0 1rem; }
+    .empty { color: #777; font-style: italic; padding: 0.75rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>الإقامات النشطة</h1>
+    <p class="subtitle">كل الإقامات التي لم يتم تسجيل خروجها بعد — للبحث والمتابعة.</p>
+    <nav>
+      <a href="index.html">إدارة المرضى</a>
+      <a href="visits.html">دخول مريض جديد (إقامة)</a>
+      <a href="catalogs.html">إدارة الكتالوجات</a>
+      <a href="procedures.html">إدارة الإجراءات الطبية</a>
+    </nav>
+
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="ابحث برقم الملف، الاسم، أو رقم الحالة..." />
+      <span id="countLabel"></span>
+    </div>
+    <p id="message"></p>
+
+    <table id="visitsTable">
+      <thead>
+        <tr>
+          <th>رقم الحالة</th>
+          <th>اسم المريض</th>
+          <th>رقم الملف</th>
+          <th>تاريخ الدخول</th>
+          <th>الحالة</th>
+          <th>إجراء</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="empty hidden" id="emptyState">لا توجد إقامات نشطة</p>
+  </div>
+  <script type="module" src="./visits-list.ts"></script>
+</body>
+</html>
