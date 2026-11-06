@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 import { join } from 'path';
+import { runMigrations } from './migrations/runner';
 
 let db: Database.Database | null = null;
 
@@ -23,6 +24,9 @@ export function initDatabase(): Database.Database {
 
   console.log(`[db] journal_mode: ${walMode}`);
   console.log(`[db] foreign_keys: ${fkMode}`);
+
+  runMigrations(db);
+  console.log('[db] migrations applied');
 
   return db;
 }
