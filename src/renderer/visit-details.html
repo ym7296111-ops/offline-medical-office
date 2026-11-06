@@ -52,6 +52,16 @@
     .totals .value { font-weight: 700; font-size: 1.1rem; }
     .hidden { display: none; }
     .empty { color: #777; font-style: italic; padding: 0.75rem; }
+    .discharge-bar {
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      background: #fff; border: 1px solid #ddd; border-radius: 6px;
+      padding: 1rem 1.25rem; margin-top: 1rem;
+    }
+    button.danger-solid { background: #c53030; border-color: #c53030; }
+    button.danger-solid:hover { background: #9b2c2c; }
+    #reportLink { color: #2b6cb0; font-weight: 600; text-decoration: none; }
+    #reportLink:hover { text-decoration: underline; }
+    #dischargeMessage { font-size: 0.9rem; }
   </style>
 </head>
 <body>
@@ -71,6 +81,12 @@
       <div class="item"><span class="label">الحالة</span><span class="value" id="visitStatus">—</span></div>
     </div>
     <p id="loadMessage"></p>
+
+    <div id="dischargeBar" class="discharge-bar hidden">
+      <button type="button" id="btnDischarge" class="danger-solid">تسجيل خروج</button>
+      <a id="reportLink" href="#" class="hidden">عرض تقرير الخروج</a>
+      <span id="dischargeMessage"></span>
+    </div>
 
     <div id="procedureSection">
       <h2>إضافة إجراء</h2>

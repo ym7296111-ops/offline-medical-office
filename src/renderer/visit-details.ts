@@ -1,6 +1,7 @@
 import {
   addVisitProcedure,
   deleteVisitProcedure,
+  dischargeVisit,
   getVisit,
   listProcedures,
   listVisitProcedures,
@@ -33,6 +34,10 @@ const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 const messageEl = document.getElementById('message') as HTMLParagraphElement;
 const tableBody = document.querySelector('#proceduresTable tbody') as HTMLTableSectionElement;
 const emptyState = document.getElementById('emptyState') as HTMLParagraphElement;
+const dischargeBar = document.getElementById('dischargeBar') as HTMLDivElement;
+const btnDischarge = document.getElementById('btnDischarge') as HTMLButtonElement;
+const reportLink = document.getElementById('reportLink') as HTMLAnchorElement;
+const dischargeMessageEl = document.getElementById('dischargeMessage') as HTMLSpanElement;
 const totalGrossEl = document.getElementById('totalGross') as HTMLSpanElement;
 const patientShareEl = document.getElementById('patientShare') as HTMLSpanElement;
 const insurerShareEl = document.getElementById('insurerShare') as HTMLSpanElement;
@@ -133,6 +138,48 @@ function fillProcedureSelect(items: ProcedureRow[]): void {
   procedureSelect.replaceChildren(...rebuilt);
 }
 
+/** Shows the discharge action for an open visit, or the report link once discharged (WF-009/WF-010). */
+function renderDischargeBar(current: VisitWithPatientRow): void {
+  const isOpen = current.discharge_date === null;
+  dischargeBar.classList.remove('hidden');
+  btnDischarge.classList.toggle('hidden', !isOpen);
+  reportLink.classList.toggle('hidden', isOpen);
+
+  if (!isOpen) {
+    reportLink.setAttribute('href', `discharge.html?id=${current.id}`);
+    setMessage(dischargeMessageEl, `تم الخروج بتاريخ ${current.discharge_date}`, 'ok');
+  } else {
+    reportLink.removeAttribute('href');
+    setMessage(dischargeMessageEl, '', 'idle');
+  }
+}
+
+btnDischarge.addEventListener('click', async () => {
+  if (visitId === null) return;
+
+  const answer = window.prompt('تاريخ الخروج (YYYY-MM-DD):', todayLocalIso());
+  if (answer === null) return; // user cancelled
+
+  const dischargeDate = answer.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dischargeDate)) {
+    setMessage(dischargeMessageEl, 'تاريخ الخروج غير صالح — الصيغة المطلوبة YYYY-MM-DD.', 'error');
+    return;
+  }
+
+  btnDischarge.disabled = true;
+  setMessage(dischargeMessageEl, 'جاري تسجيل الخروج...', 'idle');
+
+  try {
+    await dischargeVisit(visitId, dischargeDate);
+    setMessage(dischargeMessageEl, 'تم تسجيل الخروج بنجاح — جاري فتح التقرير...', 'ok');
+    window.location.href = `discharge.html?id=${visitId}`;
+  } catch (error: any) {
+    setMessage(dischargeMessageEl, error.message, 'error');
+  } finally {
+    btnDischarge.disabled = false;
+  }
+});
+
 /** Loads the visit, its line items, and the catalog. */
 async function refresh(): Promise<void> {
   if (visitId === null) return;
@@ -146,6 +193,7 @@ async function refresh(): Promise<void> {
 
     const isOpen = visit.discharge_date === null;
     procedureSection.classList.toggle('hidden', !isOpen);
+    renderDischargeBar(visit);
     if (!isOpen) {
       setMessage(loadMessageEl, 'هذه الإقامة مغلقة — لا يمكن إضافة إجراءات جديدة.', 'error');
     }

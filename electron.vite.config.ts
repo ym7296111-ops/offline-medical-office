@@ -38,7 +38,8 @@ export default defineConfig({
           catalogs: resolve(__dirname, 'src/renderer/catalogs.html'),
           visits: resolve(__dirname, 'src/renderer/visits.html'),
           'visit-details': resolve(__dirname, 'src/renderer/visit-details.html'),
-          procedures: resolve(__dirname, 'src/renderer/procedures.html')
+          procedures: resolve(__dirname, 'src/renderer/procedures.html'),
+          discharge: resolve(__dirname, 'src/renderer/discharge.html')
         }
       }
     }

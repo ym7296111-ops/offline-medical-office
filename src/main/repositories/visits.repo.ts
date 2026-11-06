@@ -98,3 +98,120 @@ export function getVisit(id: number) {
     )
     .get(id);
 }
+
+/** Whole calendar days between two YYYY-MM-DD dates, inclusive of both endpoints. */
+function calendarDaysInclusive(admissionDate: string, dischargeDate: string): number {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const start = Date.parse(`${admissionDate.slice(0, 10)}T00:00:00Z`);
+  const end = Date.parse(`${dischargeDate.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) return 1;
+  const diff = Math.round((end - start) / dayMs) + 1;
+  return Math.max(1, diff);
+}
+
+export function dischargeVisit(visitId: number, dischargeDate: string) {
+  const db = getDb();
+
+  const run = db.transaction(() => {
+    const visit = db
+      .prepare(
+        'SELECT id, admission_date, discharge_date, patient_copay_percentage, total_gross_amount FROM visits WHERE id = ?'
+      )
+      .get(visitId) as
+      | {
+          id: number;
+          admission_date: string;
+          discharge_date: string | null;
+          patient_copay_percentage: number;
+          total_gross_amount: number;
+        }
+      | undefined;
+
+    if (!visit) {
+      const error = new Error('الإقامة غير موجودة');
+      (error as { code?: string }).code = 'NOT_FOUND';
+      throw error;
+    }
+    if (visit.discharge_date !== null) {
+      const error = new Error('الإقامة مغلقة مسبقًا');
+      (error as { code?: string }).code = 'ALREADY_DISCHARGED';
+      throw error;
+    }
+
+    const admissionDay = visit.admission_date.slice(0, 10);
+    const dischargeDay = dischargeDate.slice(0, 10);
+    if (dischargeDay < admissionDay) {
+      const error = new Error('تاريخ الخروج قبل تاريخ الدخول');
+      (error as { code?: string }).code = 'INVALID_DISCHARGE_DATE';
+      throw error;
+    }
+
+    const totalDays = calendarDaysInclusive(admissionDay, dischargeDay);
+
+    // WF-009 step 4. Recompute from the line items so a stale running total can never
+    // be frozen into a closed visit; prescriptions are intentionally excluded (C9 scope).
+    const sum = db
+      .prepare('SELECT COALESCE(SUM(row_total), 0) AS gross FROM visit_procedures WHERE visit_id = ?')
+      .get(visitId) as { gross: number };
+
+    const gross = sum.gross;
+    const patientShare = Math.floor((gross * visit.patient_copay_percentage) / 100);
+    const insurerShare = gross - patientShare;
+
+    db.prepare(
+      `UPDATE visits
+          SET discharge_date = @discharge_date,
+              total_days = @total_days,
+              total_gross_amount = @gross,
+              patient_share_amount = @patient_share,
+              insurer_share_amount = @insurer_share,
+              updated_at = @updated_at
+        WHERE id = @id`
+    ).run({
+      id: visitId,
+      discharge_date: dischargeDay,
+      total_days: totalDays,
+      gross,
+      patient_share: patientShare,
+      insurer_share: insurerShare,
+      updated_at: new Date().toISOString()
+    });
+
+    return db
+      .prepare(
+        `SELECT v.*, p.full_name AS patient_name, p.file_number AS patient_file_number
+           FROM visits v
+           JOIN patients p ON p.id = v.patient_id
+          WHERE v.id = ?`
+      )
+      .get(visitId);
+  });
+
+  return run();
+}
+
+export function getVisitReport(visitId: number) {
+  const db = getDb();
+  const visit = db
+    .prepare(
+      `SELECT v.*, p.full_name AS patient_name, p.file_number AS patient_file_number
+         FROM visits v
+         JOIN patients p ON p.id = v.patient_id
+        WHERE v.id = ?`
+    )
+    .get(visitId);
+
+  if (!visit) {
+    const error = new Error('الإقامة غير موجودة');
+    (error as { code?: string }).code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const procedures = db
+    .prepare(
+      'SELECT * FROM visit_procedures WHERE visit_id = ? ORDER BY procedure_date ASC, id ASC'
+    )
+    .all(visitId);
+
+  return { visit, procedures };
+}
