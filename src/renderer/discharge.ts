@@ -1,4 +1,10 @@
-import { getVisitReport, listCorrectionsByVisit, type AuditLogRow, type VisitProcedureRow } from './ipc-client';
+import {
+  getVisitReport,
+  listCorrectionsByVisit,
+  type AuditLogRow,
+  type PrescriptionWithItemsRow,
+  type VisitProcedureRow
+} from './ipc-client';
 
 const CATEGORY_LABELS: Record<string, string> = {
   radiology: 'أشعة',
@@ -18,6 +24,11 @@ const totalDaysEl = document.getElementById('totalDays') as HTMLSpanElement;
 
 const tableBody = document.querySelector('#proceduresTable tbody') as HTMLTableSectionElement;
 const emptyState = document.getElementById('emptyState') as HTMLParagraphElement;
+const prescriptionListEl = document.getElementById('prescriptionList') as HTMLDivElement;
+const rxEmptyState = document.getElementById('rxEmptyState') as HTMLParagraphElement;
+const proceduresSubtotalEl = document.getElementById('proceduresSubtotal') as HTMLSpanElement;
+const prescriptionsSubtotalEl = document.getElementById('prescriptionsSubtotal') as HTMLSpanElement;
+const breakdownTotalEl = document.getElementById('breakdownTotal') as HTMLSpanElement;
 
 const totalGrossEl = document.getElementById('totalGross') as HTMLSpanElement;
 const patientShareEl = document.getElementById('patientShare') as HTMLSpanElement;
@@ -76,6 +87,84 @@ function renderProcedures(rows: VisitProcedureRow[]): void {
   emptyState.classList.toggle('hidden', !isEmpty);
 }
 
+/**
+ * WF-010 step 3: one block per prescription with its drugs, so the printed gross can be
+ * checked line by line (procedures + treatments) rather than taken on trust.
+ */
+function renderPrescriptions(rows: PrescriptionWithItemsRow[]): void {
+  const cards = rows.map((rx) => {
+    const card = document.createElement('div');
+    card.className = 'rx';
+
+    const head = document.createElement('div');
+    head.className = 'rx-head';
+    const title = document.createElement('h3');
+    title.textContent = `روشتة بتاريخ ${rx.prescription_date}`;
+    head.appendChild(title);
+
+    if (rx.notes) {
+      const meta = document.createElement('span');
+      meta.className = 'rx-meta';
+      meta.textContent = rx.notes;
+      head.appendChild(meta);
+    }
+
+    const total = document.createElement('span');
+    total.className = 'rx-total';
+    total.textContent = `إجمالي الروشتة: ${formatMoney(rx.total_amount)}`;
+    head.appendChild(total);
+    card.appendChild(head);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    for (const label of ['الدواء', 'الكمية', 'سعر الوحدة', 'الإجمالي', 'الجرعة / التعليمات']) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const item of rx.items) {
+      const tr = document.createElement('tr');
+      tr.appendChild(textCell(item.drug_name_snapshot));
+      tr.appendChild(textCell(String(item.quantity)));
+      tr.appendChild(textCell(formatMoney(item.unit_price_snapshot)));
+      tr.appendChild(textCell(formatMoney(item.row_total)));
+      tr.appendChild(textCell(item.notes ?? '—'));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    // Per-prescription subtotal, so a multi-drug prescription is verifiable internally.
+    const tfoot = document.createElement('tfoot');
+    const footRow = document.createElement('tr');
+    const labelCell = document.createElement('td');
+    labelCell.colSpan = 3;
+    labelCell.textContent = `مجموع البنود (${rx.items.length} دواء)`;
+    footRow.appendChild(labelCell);
+    footRow.appendChild(textCell(formatMoney(rx.total_amount)));
+    footRow.appendChild(textCell(''));
+    tfoot.appendChild(footRow);
+    table.appendChild(tfoot);
+
+    card.appendChild(table);
+    return card;
+  });
+
+  prescriptionListEl.replaceChildren(...cards);
+  rxEmptyState.classList.toggle('hidden', cards.length > 0);
+}
+
+/** Subtotals for each side of the invoice, rendered under the grand total. */
+function renderBreakdown(proceduresTotal: number, prescriptionsTotal: number): void {
+  proceduresSubtotalEl.textContent = formatMoney(proceduresTotal);
+  prescriptionsSubtotalEl.textContent = formatMoney(prescriptionsTotal);
+  breakdownTotalEl.textContent = formatMoney(proceduresTotal + prescriptionsTotal);
+}
+
 function readVisitId(): number | null {
   const raw = new URLSearchParams(window.location.search).get('id');
   if (!raw) return null;
@@ -102,10 +191,21 @@ async function init(): Promise<void> {
     totalDaysEl.textContent = visit.total_days === null ? '—' : String(visit.total_days);
 
     renderProcedures(report.procedures);
+    renderPrescriptions(report.prescriptions);
 
     totalGrossEl.textContent = formatMoney(visit.total_gross_amount);
     patientShareEl.textContent = formatMoney(visit.patient_share_amount);
     insurerShareEl.textContent = formatMoney(visit.insurer_share_amount);
+
+    // The printed gross must be the sum of what the report actually shows. If the stored
+    // total ever disagrees with the line items, surface it in red rather than hide it.
+    const proceduresTotal = report.procedures.reduce((sum, p) => sum + p.row_total, 0);
+    const prescriptionsTotal = report.prescriptions.reduce((sum, rx) => sum + rx.total_amount, 0);
+    renderBreakdown(proceduresTotal, prescriptionsTotal);
+
+    const computed = proceduresTotal + prescriptionsTotal;
+    breakdownTotalEl.className =
+      computed === visit.total_gross_amount ? 'value match' : 'value mismatch';
 
     // WF-010: the final report requires a closed visit; an open one is provisional.
     if (visit.discharge_date === null) {

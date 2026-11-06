@@ -1,6 +1,7 @@
 import { getDb } from '../db/connection';
 import { CreateVisitInput } from '../../shared/schemas/visit';
 import { recalculateVisitTotals } from './visitProcedures.repo';
+import { listPrescriptionsByVisit } from './prescriptions.repo';
 
 /** Extracts a YYYY year from an ISO date string, falling back to the current year. */
 function resolveYear(admissionDate: string): number {
@@ -205,7 +206,13 @@ export function getVisitReport(visitId: number) {
     )
     .all(visitId);
 
-  return { visit, procedures };
+  // WF-010 step 2: the report must show the prescriptions and every drug inside them, so
+  // the printed gross (procedures + treatments) is visually justifiable line by line.
+  // Reuses the prescriptions repo query rather than duplicating its join, so the report can
+  // never drift from what the visit-details screen shows.
+  const prescriptions = listPrescriptionsByVisit(visitId);
+
+  return { visit, procedures, prescriptions };
 }
 
 /**
