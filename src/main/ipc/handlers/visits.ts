@@ -77,6 +77,20 @@ export function registerVisitHandlers() {
     }
   });
 
+  ipcMain.handle('visits:listActive', (_event, searchTerm) => {
+    try {
+      // A missing/blank term means "no filter"; anything else is trimmed in the repo.
+      const term = typeof searchTerm === 'string' ? searchTerm : null;
+      const data = visitRepo.listActiveVisits(term ?? undefined);
+      return { success: true, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'فشل في جلب الإقامات النشطة' }
+      };
+    }
+  });
+
   ipcMain.handle('visits:discharge', (_event, visitId, dischargeDate) => {
     try {
       const id = Number(visitId);
