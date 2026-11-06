@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>Offline Medical Office — إدارة الأدوية</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; color: #222; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #666; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    nav { margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+    nav a { color: #2b6cb0; text-decoration: none; font-weight: 600; }
+    nav a:hover { text-decoration: underline; }
+    form {
+      background: #fff; border: 1px solid #ddd; border-radius: 6px;
+      padding: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+    }
+    input[type="text"], input[type="number"] {
+      padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px;
+      font-size: 1rem; font-family: inherit; min-width: 160px;
+    }
+    button {
+      padding: 0.5rem 1.25rem; border: 1px solid #2b6cb0; background: #2b6cb0;
+      color: #fff; border-radius: 4px; font-size: 1rem; cursor: pointer;
+    }
+    button:hover { background: #245a94; }
+    button:disabled { background: #a0aec0; border-color: #a0aec0; cursor: not-allowed; }
+    button.toggle { background: #fff; color: #2b6cb0; padding: 0.25rem 0.75rem; font-size: 0.9rem; }
+    button.toggle:hover { background: #edf2f7; }
+    #message { min-height: 1.5rem; margin: 0.75rem 0 1.5rem; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 0.6rem 0.75rem; text-align: right; }
+    th { background: #edf2f7; font-weight: 600; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    .inactive td { color: #888; }
+    .status { font-weight: 600; }
+    .status.active { color: #2f855a; }
+    .status.inactive { color: #c53030; }
+    .empty { color: #777; font-style: italic; padding: 0.75rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>إدارة الأدوية</h1>
+    <p class="subtitle">كتالوج الأدوية — يُستخدم لاحقًا لإدخال روشتة العلاج (D-005).</p>
+    <nav>
+      <a href="index.html">إدارة المرضى</a>
+      <a href="visits-list.html">الإقامات النشطة</a>
+      <a href="visits.html">دخول مريض جديد</a>
+      <a href="catalogs.html">إدارة الكتالوجات</a>
+      <a href="procedures.html">إدارة الإجراءات الطبية</a>
+    </nav>
+
+    <form id="drugForm">
+      <input type="text" id="name" placeholder="اسم الدواء" required />
+      <input type="number" id="current_price" placeholder="السعر (قرش)" min="0" step="1" value="0" required />
+      <button type="submit" id="submitBtn">إضافة دواء</button>
+    </form>
+    <p id="message"></p>
+
+    <table id="drugsTable">
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>السعر</th>
+          <th>الحالة</th>
+          <th>إجراء</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="empty hidden" id="emptyState">لا توجد أدوية مسجلة بعد.</p>
+  </div>
+  <script type="module" src="./drugs.ts"></script>
+</body>
+</html>

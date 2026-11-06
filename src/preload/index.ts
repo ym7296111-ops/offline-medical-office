@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld('api', {
     create: (input: any) => ipcRenderer.invoke('procedures:create', input),
     toggle: (id: number) => ipcRenderer.invoke('procedures:toggle', id),
   },
+  drugs: {
+    listAll: () => ipcRenderer.invoke('drugs:listAll'),
+    listActive: () => ipcRenderer.invoke('drugs:listActive'),
+    create: (input: any) => ipcRenderer.invoke('drugs:create', input),
+    toggle: (id: number) => ipcRenderer.invoke('drugs:toggle', id),
+  },
   visitProcedures: {
     add: (input: any) => ipcRenderer.invoke('visit_procedures:add', input),
     listByVisit: (visitId: number) => ipcRenderer.invoke('visit_procedures:listByVisit', visitId),

@@ -2,7 +2,9 @@ import { ipcMain } from 'electron';
 import { CreateInsuranceCompanyInput, CreateMedicalEntityInput } from '../../../shared/schemas/catalog';
 import * as catalogRepo from '../../repositories/catalogs.repo';
 import * as procedureRepo from '../../repositories/procedures.repo';
+import * as drugRepo from '../../repositories/drugs.repo';
 import { CreateProcedureInput } from '../../../shared/schemas/procedure';
+import { CreateDrugInput } from '../../../shared/schemas/drug';
 import { ZodError } from 'zod';
 
 const isUniqueViolation = (error: unknown): boolean =>
@@ -144,6 +146,58 @@ export function registerCatalogHandlers() {
       const result = procedureRepo.toggleProcedure(id);
       if (result.changes === 0) {
         return { success: false, error: { code: 'NOT_FOUND', message: 'الإجراء غير موجود' } };
+      }
+      return { success: true, data: result };
+    } catch (error) {
+      return genericError('فشل في تغيير الحالة');
+    }
+  });
+
+  // `drugs:listAll` backs the management screen, including deactivated rows.
+  ipcMain.handle('drugs:listAll', () => {
+    try {
+      const data = drugRepo.listAllDrugs();
+      return { success: true, data };
+    } catch (error) {
+      return genericError('فشل في جلب البيانات');
+    }
+  });
+
+  // `drugs:listActive` backs the prescription drug picker (C10.2).
+  ipcMain.handle('drugs:listActive', () => {
+    try {
+      const data = drugRepo.listActiveDrugs();
+      return { success: true, data };
+    } catch (error) {
+      return genericError('فشل في جلب البيانات');
+    }
+  });
+
+  ipcMain.handle('drugs:create', (_event, raw) => {
+    try {
+      const input = CreateDrugInput.parse(raw);
+      const result = drugRepo.createDrug(input);
+      return { success: true, data: result };
+    } catch (error) {
+      if (error instanceof ZodError) return validationError(error);
+
+      // drugs.name is UNIQUE globally (not per category, unlike procedures).
+      if (isUniqueViolation(error)) {
+        return {
+          success: false,
+          error: { code: 'CONFLICT', message: 'اسم الدواء مستخدم بالفعل' }
+        };
+      }
+
+      return genericError('حدث خطأ غير متوقع');
+    }
+  });
+
+  ipcMain.handle('drugs:toggle', (_event, id) => {
+    try {
+      const result = drugRepo.toggleDrug(id);
+      if (result.changes === 0) {
+        return { success: false, error: { code: 'NOT_FOUND', message: 'الدواء غير موجود' } };
       }
       return { success: true, data: result };
     } catch (error) {
